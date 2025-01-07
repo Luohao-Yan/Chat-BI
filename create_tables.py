@@ -13,10 +13,10 @@ logging.basicConfig(
 
 # 从环境变量中获取数据库连接信息
 dbname = os.getenv("DBNAME", "chabi_template")
-user = os.getenv("USER", "aigcgen")
-password = os.getenv("PGPASSWORD", "Louis!123456")  # 确保这里提供了正确的密码
-host = os.getenv("HOST", "127.0.0.1")
-port = os.getenv("PORT", "5432")  # 更新为新的端口
+user = os.getenv("DBUSER", "aigcgen")
+password = os.getenv("DBPGPASSWORD", "Louis!123456")  # 确保这里提供了正确的密码
+host = os.getenv("DBHOST", "127.0.0.1")
+port = os.getenv("DBPORT", "5432")  # 更新为新的端口
 
 # 启用 PostGIS 扩展的 SQL 语句
 enable_postgis_sql = """

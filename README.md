@@ -8,3 +8,167 @@
 python main.py
 ```
 运行后会根据用户的问题生成一张图表。
+
+# 前端项目创建流程
+## 前端项目使用的是Vuetify+Vue+Vite5+Typescript
+使用命令创建前端项目：`pnpm create vuetify`
+```
+success Installed "create-vuetify@x.x.x" with binaries:
+    - create-vuetify
+
+? Project name (项目名): ❯ vuetify-project //生成应用程序的文件夹
+? Use TypeScript (使用 TypeScript)?: ❯ No / Yes
+? Would you like to install dependencies with yarn, npm, or pnpm?:
+    yarn
+    npm
+  ❯ pnpm
+    bun
+    none
+```
+
+- 创建后设置项目的名称并选择项目创建的方式（如下所示）：
+```
+Vuetify.js - Material Component Framework for Vue
+
+✔ Project name: … chatbi
+? Which preset would you like to install? › - Use arrow-keys. Return to submit.
+    Barebones (Only Vue & Vuetify)
+❯   Default (Adds routing, ESLint & SASS variables)
+    Recommended (Everything from Default. Adds auto importing, layouts & pinia)
+    Nuxt Barebones (Only Vuetify)
+    Nuxt Default (Adds Nuxt ESLint & SASS variables)
+    Nuxt Recommended (Everything from Default. Enables auto importing & layouts)
+```
+- 初学者或者希望快速搭建一个功能齐全的项目，建议选择Recommended预设：`Recommended (Everything from Default. Adds auto importing, layouts & pinia)`
+
+选项说明
+- Barebones (Only Vue & Vuetify): 仅包含Vue和Vuetify，适合希望从头开始配置项目的开发者。
+- Default (Adds routing, ESLint & SASS variables): 包含路由、ESLint和SASS变量，适合大多数项目的基础配置。
+- Recommended (Everything from Default. Adds auto importing, layouts & pinia): 包含Default预设的所有内容，并增加了自动导入、布局和Pinia状态管理，适合希望快速上手并使用更多功能的开发者。
+- Nuxt Barebones (Only Vuetify): 仅包含Nuxt和Vuetify，适合希望从头开始配置Nuxt项目的开发者。
+- Nuxt Default (Adds Nuxt ESLint & SASS variables): 包含Nuxt的基础配置，适合大多数Nuxt项目。
+- Nuxt Recommended (Everything from Default. Enables auto importing & layouts): 包含Nuxt Default预设的所有内容，并增加了自动导入和布局，适合希望快速上手并使用更多功能的Nuxt开发者。
+
+
+- 使用pnpm，并且它在性能和磁盘空间管理方面有显著优势，建议继续使用pnpm来安装依赖
+```
+(poc-demo) (base) yanluohao@yanluohaodeMacBook-Pro frontend % pnpm create vuetify
+
+ WARN  GET https://registry.npmjs.org/sisteransi error (ENOTFOUND). Will retry in 10 seconds. 2 retries left.
+.../Library/pnpm/store/v3/tmp/dlx-9544   |  +16 ++
+.../Library/pnpm/store/v3/tmp/dlx-9544   | Progress: resolved 16, reused 9, downloaded 7, added 16, done
+
+Vuetify.js - Material Component Framework for Vue
+
+✔ Project name: … chatbi
+✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
+✔ Use TypeScript? … No / Yes
+? Would you like to install dependencies with yarn, npm, pnpm, or bun? › - Use arrow-keys. Return to submit.
+    yarn
+    npm
+❯   pnpm
+    bun
+    none
+```
+选项说明
+- yarn: 一个快速、可靠且安全的包管理工具，具有并行安装和锁定文件的功能，确保一致的依赖关系。
+- npm: Node.js的默认包管理工具，广泛使用且功能强大，适合大多数项目。
+- pnpm: 一个高效的包管理工具，通过硬链接和符号链接来节省磁盘空间和安装时间，适合大型项目。
+- bun: 一个新的包管理工具，专注于速度和性能，但目前还在快速发展中，可能不如其他工具稳定。
+- none: 不自动安装依赖，适合希望手动管理依赖的开发者。
+
+- 询问你是否希望在项目创建完成后立即安装项目的依赖项。选择Yes会自动安装所有的依赖项，选择No则不会自动安装依赖项
+
+```
+✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
+? Install Dependencies? › No / Yes
+```
+选项说明
+- Yes: 自动安装项目的所有依赖项。推荐选择这个选项，这样你可以立即开始开发，而不需要手动安装依赖项。
+- No: 不自动安装依赖项。选择这个选项后，你需要手动运行pnpm install来安装依赖项。
+
+在选择pnpm后，选择Yes来安装依赖项：
+
+```
+✔ Project name: … chatbi
+✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
+✔ Use TypeScript? … Yes
+✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
+✔ Install Dependencies? › Yes
+```
+
+```
+(poc-demo) (base) yanluohao@yanluohaodeMacBook-Pro frontend % pnpm create vuetify
+
+ WARN  GET https://registry.npmjs.org/sisteransi error (ENOTFOUND). Will retry in 10 seconds. 2 retries left.
+.../Library/pnpm/store/v3/tmp/dlx-9544   |  +16 ++
+.../Library/pnpm/store/v3/tmp/dlx-9544   | Progress: resolved 16, reused 9, downloaded 7, added 16, done
+
+Vuetify.js - Material Component Framework for Vue
+
+✔ Project name: … chatbi
+✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
+✔ Use TypeScript? … No / Yes
+✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
+✔ Install Dependencies? … No / Yes
+
+◌ Generating scaffold...
+◌ Installing dependencies with pnpm...
+
+
+   ╭──────────────────────────────────────────────────────────────────╮
+   │                                                                  │
+   │                Update available! 8.14.1 → 9.15.3.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v9.15.3   │
+   │                Run "pnpm add -g pnpm" to update.                 │
+   │                                                                  │
+   │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
+   │                                                                  │
+   ╰──────────────────────────────────────────────────────────────────╯
+
+Packages: +246
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 305, reused 163, downloaded 83, added 246, done
+node_modules/.pnpm/core-js@3.39.0/node_modules/core-js: Running postinstall script, done in 228ms
+node_modules/.pnpm/vue-demi@0.14.10_vue@3.5.13/node_modules/vue-demi: Running postinstall script, done in 260ms
+node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild: Running postinstall script, done in 409ms
+
+dependencies:
++ @mdi/font 7.4.47
++ core-js 3.39.0
++ roboto-fontface 0.10.0
++ vue 3.5.13
++ vuetify 3.7.6
+
+devDependencies:
++ @eslint/js 9.17.0
++ @tsconfig/node22 22.0.0
++ @types/node 22.10.5
++ @vitejs/plugin-vue 5.2.1
++ @vue/eslint-config-typescript 14.2.0
++ @vue/tsconfig 0.5.1 (0.7.0 is available)
++ eslint 9.17.0
++ eslint-plugin-vue 9.32.0
++ npm-run-all2 7.0.2
++ pinia 2.3.0
++ sass 1.77.8 (1.83.0 is available)
++ sass-embedded 1.83.1
++ typescript 5.6.3 (5.7.2 is available)
++ unplugin-auto-import 0.17.8 (0.19.0 is available)
++ unplugin-fonts 1.3.1
++ unplugin-vue-components 0.27.5 (0.28.0 is available)
++ unplugin-vue-router 0.10.9
++ vite 5.4.11 (6.0.7 is available)
++ vite-plugin-vue-layouts 0.11.0
++ vite-plugin-vuetify 2.0.4
++ vue-router 4.5.0
++ vue-tsc 2.2.0
+
+Done in 13.3s
+
+chatbi has been generated at /Users/yanluohao/开发/chatbi-poc/frontend/chatbi
+
+Discord community: https://community.vuetifyjs.com
+Github: https://github.com/vuetifyjs/vuetify
+Support Vuetify: https://github.com/sponsors/johnleider
+```

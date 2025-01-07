@@ -13,10 +13,10 @@ logging.basicConfig(
 
 # 从环境变量中获取数据库连接信息
 dbname = os.getenv("DBNAME")
-user = 'aigcgen'
-password = os.getenv("PGPASSWORD")
-host = os.getenv("HOST")
-port = os.getenv("PORT")
+user = os.getenv("DBUSER", "aigcgen")
+password = os.getenv("DBPGPASSWORD")
+host = os.getenv("DBHOST")
+port = os.getenv("DBPORT")
 
 # 打印环境变量以确认加载正确
 logging.info(f"数据库名: {dbname}")

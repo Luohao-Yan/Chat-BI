@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+pydantic
+requests
+python-dotenv
+pandas
+plotly
+kaleido

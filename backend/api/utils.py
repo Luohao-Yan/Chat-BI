@@ -1,20 +1,14 @@
 import os
-import time
-import requests
 import json
 import logging
-import psycopg2
-import concurrent.futures
-import pandas as pd
-import plotly.express as px
-import plotly.utils
-import kaleido
-import plotly.io as pio
-from io import StringIO
-from psycopg2 import sql
+import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from db.session import async_session
+import pandas as pd
 
 # 加载环境变量
 load_dotenv()
@@ -23,13 +17,6 @@ load_dotenv()
 api_url_14b_chat = os.getenv("API_URL_14B_CHAT")
 api_url_14b_generate = os.getenv("API_URL_14B_GENERATE")
 api_url_72b_chat = os.getenv("API_URL_72B_CHAT")
-
-# 从环境变量中获取数据库连接信息
-dbname = os.getenv("DBNAME")
-user = os.getenv("DBUSER")
-password = os.getenv("DBPGPASSWORD")
-host = os.getenv("DBHOST")
-port = os.getenv("DBPORT")
 
 # 配置日志记录
 logging.basicConfig(
@@ -65,17 +52,9 @@ model_config = {
     },
 }
 
-def make_api_request(api_url, headers, data):
-    """
-    通用的API请求函数，处理请求和错误。
-
-    :param api_url: API的URL
-    :param headers: 请求头
-    :param data: 请求数据
-    :return: API响应的JSON数据或None
-    """
+async def make_api_request(api_url, headers, data):
     try:
-        response = session.post(api_url, headers=headers, data=json.dumps(data), timeout=120)
+        response = await session.post(api_url, headers=headers, data=json.dumps(data), timeout=120)
         response.raise_for_status()
         if response.text.strip():
             return response.json()
@@ -89,8 +68,7 @@ def make_api_request(api_url, headers, data):
         logging.error(f"JSON解析错误: {e}")
         return None
 
-# 千问2.5 模型调用
-def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
+async def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
     headers = {"Content-Type": "application/json"}
     data = {
         "model": model,
@@ -104,28 +82,28 @@ def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
         "max_tokens": 4000,
         "stream": False,
     }
-    result = make_api_request(api_url, headers, data)
+    result = await make_api_request(api_url, headers, data)
     if result and "message" in result and "content" in result["message"]:
         return result["message"]["content"]
     else:
         logging.error("API响应中没有预期的'message'或'content'字段")
         return None
 
-def call_qwen_generate_14B_api(api_url, model, system_prompt):
+async def call_qwen_generate_14B_api(api_url, model, system_prompt):
     headers = {"Content-Type": "application/json"}
     data = {
         "model": model,
         "prompt": system_prompt,
         "stream": False,
     }
-    result = make_api_request(api_url, headers, data)
+    result = await make_api_request(api_url, headers, data)
     if result and "response" in result:
         return result["response"]
     else:
         logging.error("API响应中没有预期的'response'字段")
         return None
 
-def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
+async def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
     headers = {"Content-Type": "application/json"}
     messages = [{"role": "system", "content": system_prompt}]
     if user_input:
@@ -139,7 +117,7 @@ def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
         "repetition_penalty": 1.05,
         "stream": False,
     }
-    result = make_api_request(api_url, headers, data)
+    result = await make_api_request(api_url, headers, data)
     if result and "choices" in result and len(result["choices"]) > 0:
         message = result["choices"][0]["message"]
         if "content" in message:
@@ -151,8 +129,7 @@ def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
         logging.error("API响应中没有预期的'choices'字段或'choices'为空")
         return None
 
-# 统一请求qwen2.5 模型调用函数
-def call_qwen_model(model_type, system_prompt, user_input=None):
+async def call_qwen_model(model_type, system_prompt, user_input=None):
     config = model_config.get(model_type)
     if not config:
         logging.error("未知的模型类型")
@@ -163,24 +140,16 @@ def call_qwen_model(model_type, system_prompt, user_input=None):
     call_function = config["call_function"]
 
     if call_function == "call_qwen_chat_14B_api":
-        return call_qwen_chat_14B_api(api_url, model, system_prompt, user_input)
+        return await call_qwen_chat_14B_api(api_url, model, system_prompt, user_input)
     elif call_function == "call_qwen_generate_14B_api":
-        return call_qwen_generate_14B_api(api_url, model, system_prompt)
+        return await call_qwen_generate_14B_api(api_url, model, system_prompt)
     elif call_function == "call_qwen_chat_72B_api":
-        return call_qwen_chat_72B_api(api_url, model, system_prompt, user_input)
+        return await call_qwen_chat_72B_api(api_url, model, system_prompt, user_input)
     else:
         logging.error("未知的调用函数")
         return None
 
-def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
-    """
-    分析用户的输入意图并生成相应的SQL语句。
-
-    :param user_input: 用户的输入
-    :param retry_count: 重试次数
-    :return: 生成的SQL语句或None
-    """
-    # 定义系统提示，要求生成的SQL语句必须是Markdown格式
+async def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
     system_prompt = (
         "Analyze the user input and generate the corresponding SQL query based on the existing database table clause. "
         """My database build statement:\n\n
@@ -316,11 +285,9 @@ COMMENT ON TABLE "public"."grid_first_level_info" IS '一级社区网格信息';
     )
 
     for attempt in range(retry_count):
-        # 调用AI模型生成SQL语句
-        ai_response = call_qwen_model(model_type, system_prompt, user_input)
+        ai_response = await call_qwen_model(model_type, system_prompt, user_input)
 
         if ai_response:
-            # 从AI的回复中提取SQL语句
             sql_start = ai_response.find("```sql\n") + len("```sql\n")
             sql_end = ai_response.find("\n```", sql_start)
             sql_query = ai_response[sql_start:sql_end].strip()
@@ -335,53 +302,28 @@ COMMENT ON TABLE "public"."grid_first_level_info" IS '一级社区网格信息';
     logging.error("多次尝试后仍未能生成SQL语句")
     return None
 
+async def execute_sql_query(sql_query, retry_count=3):
+    async with async_session() as session:
+        async with session.begin():
+            for attempt in range(retry_count):
+                try:
+                    result = await session.execute(sql_query)
+                    df = pd.DataFrame(result.fetchall(), columns=result.keys())
+                    return df
+                except Exception as e:
+                    logging.error(f"SQL查询错误: {e}")
+                    if attempt < retry_count - 1:
+                        logging.info("重新生成SQL查询语句并重试...")
+                        user_input = "获取所有用户的姓名和邮箱"  # 示例用户输入
+                        sql_query = await analyze_user_intent_and_generate_sql(user_input)
+                        if not sql_query:
+                            logging.error("重新生成SQL查询语句失败")
+                            return None
+                    else:
+                        logging.error("多次尝试后仍未能成功执行SQL查询")
+                        return None
 
-def execute_sql_query(sql_query, retry_count=3):
-    """
-    执行SQL查询并返回结果。
-
-    :param sql_query: 要执行的SQL查询
-    :param retry_count: 重试次数
-    :return: 查询结果的Pandas DataFrame或None
-    """
-    conn = None
-    for attempt in range(retry_count):
-        try:
-            # 连接到PostgreSQL数据库
-            conn = psycopg2.connect(
-                dbname=dbname,
-                user=user,
-                password=password,
-                host=host,
-                port=port
-            )
-            # 执行SQL查询
-            df = pd.read_sql_query(sql_query, conn)
-            return df
-        except Exception as e:
-            logging.error(f"SQL查询错误: {e}")
-            if attempt < retry_count - 1:
-                logging.info("重新生成SQL查询语句并重试...")
-                user_input = "获取所有用户的姓名和邮箱"  # 示例用户输入
-                sql_query = analyze_user_intent_and_generate_sql(user_input)
-                if not sql_query:
-                    logging.error("重新生成SQL查询语句失败")
-                    return None
-            else:
-                logging.error("多次尝试后仍未能成功执行SQL查询")
-                return None
-        finally:
-            if conn:
-                conn.close()
-
-def refine_data_with_ai(user_input, df):
-    """
-    使用AI模型对查询结果数据进行梳理整理，给出X轴和Y轴的列名，以及数据展示的刻度和单位。
-
-    :param user_input: 用户的输入
-    :param df: 查询结果的Pandas DataFrame
-    :return: X轴和Y轴的列名，以及刻度和单位（JSON格式）
-    """
+async def refine_data_with_ai(user_input, df):
     system_prompt = (
         "Based on the user's question and the query result, determine the appropriate columns for the X-axis and Y-axis, "
         "as well as the scale and unit for displaying the data. The column names, scale, and unit should be returned in JSON format using markdown.\n\n"
@@ -391,7 +333,7 @@ def refine_data_with_ai(user_input, df):
     query_result = df.to_json(orient='records')
     final_prompt = system_prompt.format(user_input=user_input, query_result=query_result)
     print("系统提示词:\n", final_prompt)  # 打印最终的系统提示词
-    ai_response = call_qwen_model(model_type, final_prompt)
+    ai_response = await call_qwen_model(model_type, final_prompt)
     logging.info(f"refine_data_with_ai AI返回的数据: {ai_response}")
 
     if ai_response:
@@ -410,15 +352,8 @@ def refine_data_with_ai(user_input, df):
     else:
         logging.error("无法从AI的回复中提取X轴和Y轴的列名")
         return None
-    
-def determine_chart_type(user_input, query_result):
-    """
-    根据用户输入和查询结果判断生成的图表类型。
 
-    :param user_input: 用户的输入
-    :param query_result: 查询结果的JSON数据
-    :return: 图表类型和配置（例如：{'type': 'line', 'series': [{'name': 'series1', 'data': [...]}, {'name': 'series2', 'data': [...]}]}）
-    """
+async def determine_chart_type(user_input, query_result):
     system_prompt = (
         "Based on the user's question and the query result, determine the appropriate chart type and configuration. "
         "The chart type should be one of the following: 'line', 'pie', 'bar', 'scatter'. "
@@ -427,7 +362,7 @@ def determine_chart_type(user_input, query_result):
         "Query result:\n{query_result}"
     )
     final_prompt = system_prompt.format(user_input=user_input, query_result=query_result)
-    ai_response = call_qwen_model(model_type, final_prompt)
+    ai_response = await call_qwen_model(model_type, final_prompt)
 
     if ai_response:
         try:
@@ -445,56 +380,3 @@ def determine_chart_type(user_input, query_result):
     else:
         logging.error("无法从AI的回复中提取图表配置")
         return {'type': 'line', 'series': []}  # 默认生成折线图
-
-
-
-
-if __name__ == "__main__":
-    # 记录开始时间
-    start_time = time.time()
-    user_input = "2024年10月人口进出趋势变化"
-    
-    # 记录生成SQL语句的开始时间
-    sql_start_time = time.time()
-    sql_query = analyze_user_intent_and_generate_sql(user_input)
-    sql_end_time = time.time()
-    
-    if sql_query:
-        # 记录执行SQL查询的开始时间
-        query_start_time = time.time()
-        df = execute_sql_query(sql_query)
-        logging.info(f"数据库查询结果：\n{df}")
-        query_end_time = time.time()
-        
-        if df is not None:
-            # 将日期类型转换为字符串
-            df['statistics_date'] = df['statistics_date'].astype(str)
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future_refine = executor.submit(refine_data_with_ai, user_input, df)
-                future_chart = executor.submit(determine_chart_type, user_input, json.dumps(df.to_dict(orient='records')))
-                
-                refined_df = future_refine.result()
-                chart_type = future_chart.result()
-                
-                if refined_df is not None:
-                    logging.info(f"梳理整理后的数据: {refined_df}")
-                    logging.info(f"确定的图表类型: {chart_type}")
-                else:
-                    print("未能梳理整理数据")
-        else:
-            print("SQL查询失败")
-    else:
-        print("未能生成SQL语句")
-        # 记录结束时间
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    sql_generation_time = sql_end_time - sql_start_time
-    sql_query_time = query_end_time - query_start_time
-    
-    logging.info(f"程序开始时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
-    logging.info(f"程序结束时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
-    logging.info(f"程序总运行时间: {elapsed_time:.2f} 秒")
-    logging.info(f"生成SQL语句时间: {sql_generation_time:.2f} 秒")
-    logging.info(f"执行SQL查询时间: {sql_query_time:.2f} 秒")
-        
