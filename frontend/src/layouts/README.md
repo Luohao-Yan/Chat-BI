@@ -1,5 +1,5 @@
-# Layouts
+# 布局
 
-Layouts are reusable components that wrap around pages. They are used to provide a consistent look and feel across multiple pages.
+布局是可重用的组件，用于包裹页面。它们用于在多个页面之间提供一致的外观和感觉。
 
-Full documentation for this feature can be found in the Official [vite-plugin-vue-layouts](https://github.com/JohnCampionJr/vite-plugin-vue-layouts) repository.
+有关此功能的完整文档，请参阅官方 [vite-plugin-vue-layouts](https://github.com/JohnCampionJr/vite-plugin-vue-layouts) 仓库。

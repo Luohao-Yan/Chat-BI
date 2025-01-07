@@ -172,3 +172,28 @@ Discord community: https://community.vuetifyjs.com
 Github: https://github.com/vuetifyjs/vuetify
 Support Vuetify: https://github.com/sponsors/johnleider
 ```
+
+
+# git 提交代码到GitHub仓库
+
+1. 初始化本地 Git 仓库`git init`
+2. 添加远程仓库
+    - 将你的本地仓库与 GitHub 仓库关联：`git remote add origin https://github.com/your_username/chatbi-poc.git`
+3. 添加文件并提交
+    - 添加所有文件并提交：
+```
+git add .
+git commit -m "Initial commit"
+```
+4. 推送到 GitHub
+将代码推送到 GitHub 仓库：`git push -u origin main`
+5. 确保你在项目根目录
+6. 检查当前状态
+    - 使用 git status 命令查看当前的更改状态：`git status`
+7. 添加更改的文件
+    - 将更改的文件添加到暂存区。你可以添加所有更改的文件：`git add .`
+    - 或者只添加特定的文件：`git add path/to/your/file`
+8. 提交更改
+    - 使用 git commit 命令提交更改，并添加提交信息：`git commit -m "描述你的更改"`
+9. 推送到 GitHub
+    - 将更改推送到 GitHub 仓库：`git push origin main`

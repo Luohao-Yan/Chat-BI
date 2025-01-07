@@ -14,4 +14,7 @@ class Settings:
     DB_HOST: str = os.getenv("DBHOST")
     DB_PORT: str = os.getenv("DBPORT")
 
+    # 组合生成 DATABASE_URL
+    DATABASE_URL: str = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
 settings = Settings()

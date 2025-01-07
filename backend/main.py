@@ -1,11 +1,18 @@
 import os
 from fastapi import FastAPI
-from api.endpoints import router as api_router
+from api.endpoints import create_tables, insert_data, generate_sql, execute_sql, refine_data, determine_chart
+from api.utils.logging_utils import setup_logging
 import uvicorn
 
 app = FastAPI()
 
-app.include_router(api_router)
+# 包含路由
+app.include_router(create_tables.router, prefix="/api")
+app.include_router(insert_data.router, prefix="/api")
+app.include_router(generate_sql.router, prefix="/api")
+app.include_router(execute_sql.router, prefix="/api")
+app.include_router(refine_data.router, prefix="/api")
+app.include_router(determine_chart.router, prefix="/api")
 
 if __name__ == "__main__":
     host = os.getenv("FASTAPI_HOST", "0.0.0.0")  # 默认值为 "0.0.0.0"

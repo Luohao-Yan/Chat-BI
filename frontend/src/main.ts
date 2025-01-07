@@ -1,17 +1,10 @@
-/**
- * main.ts
- *
- * Bootstraps Vuetify and other plugins then mounts the App`
- */
-
-// Plugins
+import { createApp } from 'vue'
+import App from './App.vue'
 import { registerPlugins } from '@/plugins'
 
-// Components
-import App from './App.vue'
-
-// Composables
-import { createApp } from 'vue'
+// 导入 Vuetify 的 CSS
+import 'vuetify/styles'
+import '@mdi/font/css/materialdesignicons.css'
 
 const app = createApp(App)
 

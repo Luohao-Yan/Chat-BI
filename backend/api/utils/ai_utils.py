@@ -5,10 +5,6 @@ import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from db.session import async_session
-import pandas as pd
 
 # 加载环境变量
 load_dotenv()
@@ -302,81 +298,65 @@ COMMENT ON TABLE "public"."grid_first_level_info" IS '一级社区网格信息';
     logging.error("多次尝试后仍未能生成SQL语句")
     return None
 
-async def execute_sql_query(sql_query, retry_count=3):
-    async with async_session() as session:
-        async with session.begin():
-            for attempt in range(retry_count):
-                try:
-                    result = await session.execute(sql_query)
-                    df = pd.DataFrame(result.fetchall(), columns=result.keys())
-                    return df
-                except Exception as e:
-                    logging.error(f"SQL查询错误: {e}")
-                    if attempt < retry_count - 1:
-                        logging.info("重新生成SQL查询语句并重试...")
-                        user_input = "获取所有用户的姓名和邮箱"  # 示例用户输入
-                        sql_query = await analyze_user_intent_and_generate_sql(user_input)
-                        if not sql_query:
-                            logging.error("重新生成SQL查询语句失败")
-                            return None
-                    else:
-                        logging.error("多次尝试后仍未能成功执行SQL查询")
-                        return None
-
 async def refine_data_with_ai(user_input, df):
     system_prompt = (
         "Based on the user's question and the query result, determine the appropriate columns for the X-axis and Y-axis, "
         "as well as the scale and unit for displaying the data. The column names, scale, and unit should be returned in JSON format using markdown.\n\n"
         "User's question: {user_input}\n\n"
-        "Query result:\n{query_result}"
+        "Query result:\n\n"
+        f"{df.to_json(orient='records')}\n\n"
+        "The JSON format should be as follows:\n\n"
+        "```json\n"
+        "{\n"
+        '  "x_axis": "column_name",\n'
+        '  "y_axis": "column_name",\n'
+        '  "scale": "linear",\n'
+        '  "unit": "unit_name"\n'
+        "}\n"
+        "```"
     )
-    query_result = df.to_json(orient='records')
-    final_prompt = system_prompt.format(user_input=user_input, query_result=query_result)
-    print("系统提示词:\n", final_prompt)  # 打印最终的系统提示词
-    ai_response = await call_qwen_model(model_type, final_prompt)
-    logging.info(f"refine_data_with_ai AI返回的数据: {ai_response}")
 
+    ai_response = await call_qwen_model(model_type, system_prompt, user_input)
     if ai_response:
+        json_start = ai_response.find("```json\n") + len("```json\n")
+        json_end = ai_response.find("\n```", json_start)
+        json_data = ai_response[json_start:json_end].strip()
+        
         try:
-            # 提取Markdown中的JSON数据
-            json_start = ai_response.find("```json\n") + len("```json\n")
-            json_end = ai_response.find("\n```", json_start)
-            json_data = ai_response[json_start:json_end].strip()
-            
-            # 解析JSON数据
-            axis_columns = json.loads(json_data)
-            return axis_columns
-        except (ValueError, AttributeError) as e:
-            logging.error(f"无法解析AI返回的数据为JSON格式: {e}")
+            refined_data = json.loads(json_data)
+            return refined_data
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON解析错误: {e}")
             return None
     else:
-        logging.error("无法从AI的回复中提取X轴和Y轴的列名")
+        logging.error("AI未能生成有效的回复")
         return None
 
-async def determine_chart_type(user_input, query_result):
+async def determine_chart_type(user_input, json_data):
     system_prompt = (
-        "Based on the user's question and the query result, determine the appropriate chart type and configuration. "
-        "The chart type should be one of the following: 'line', 'pie', 'bar', 'scatter'. "
-        "If the chart type is 'line', 'bar', or 'scatter', you can include multiple series in the configuration.\n\n"
+        "Based on the user's question and the provided data, determine the most appropriate chart type to visualize the data. "
+        "The chart type should be returned as a string in markdown format.\n\n"
         "User's question: {user_input}\n\n"
-        "Query result:\n{query_result}"
+        "Data:\n\n"
+        f"{json_data}\n\n"
+        "The chart type should be one of the following: 'bar', 'line', 'pie', 'scatter', 'histogram'.\n\n"
+        "The response should be formatted as follows:\n\n"
+        "```chart\n"
+        "chart_type\n"
+        "```"
     )
-    final_prompt = system_prompt.format(user_input=user_input, query_result=query_result)
-    ai_response = await call_qwen_model(model_type, final_prompt)
 
+    ai_response = await call_qwen_model(model_type, system_prompt, user_input)
     if ai_response:
-        try:
-            # 打印AI返回的原始响应
-            logging.info(f"AI返回的原始响应: {ai_response}")
-            
-            # 提取AI返回的图表类型和配置
-            chart_config = json.loads(ai_response.strip())
-            logging.info(f"AI返回的图表配置: {chart_config}")
-            return chart_config
-        except json.JSONDecodeError as e:
-            logging.error(f"解析AI返回的图表配置时出错: {e}")
-            logging.error(f"AI返回的响应内容: {ai_response}")
-            return {'type': 'line', 'series': []}  # 默认生成折线图
+        chart_start = ai_response.find("```chart\n") + len("```chart\n")
+        chart_end = ai_response.find("\n```", chart_start)
+        chart_type = ai_response[chart_start:chart_end].strip()
+        
+        if chart_type in ['bar', 'line', 'pie', 'scatter', 'histogram']:
+            return chart_type
+        else:
+            logging.error("AI生成的图表类型无效")
+            return None
     else:
-        logging.error("无法从AI的回复中提取图表配置")
-        return {'type': 'line', 'series': []}  # 默认生成折线图
+        logging.error("AI未能生成有效的回复")
+        return None

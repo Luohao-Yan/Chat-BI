@@ -8,3 +8,4 @@ python-dotenv
 pandas
 plotly
 kaleido
+psycopg2-binary
