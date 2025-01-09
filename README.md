@@ -1,5 +1,8 @@
 # ChatBI-POC
 
+## 启动效果
+![alt text](public/WechatIMG993.jpg) ![alt text](public/WechatIMG994.jpg) ![alt text](public/WechatIMG995.jpg) ![alt text](public/WechatIMG996.jpg) ![alt text](public/WechatIMG997.jpg) ![alt text](public/WechatIMG998.jpg) ![alt text](public/WechatIMG999.jpg)
+
 ## 启动数据库
 `docker-compose up -d`
 
