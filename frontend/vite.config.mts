@@ -6,6 +6,7 @@ import Layouts from 'vite-plugin-vue-layouts'
 import Vue from '@vitejs/plugin-vue'
 import VueRouter from 'unplugin-vue-router/vite'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
+import Pages from 'vite-plugin-pages'  // 添加这一行
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -18,6 +19,7 @@ export default defineConfig({
       dts: 'src/typed-router.d.ts',
     }),
     Layouts(),
+    Pages(),  // 添加这一行
     AutoImport({
       imports: [
         'vue',

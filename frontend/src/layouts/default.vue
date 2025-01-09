@@ -1,4 +1,3 @@
-<!-- frontend/src/layouts/MainLayout.vue -->
 <template>
   <v-app>
     <Sidebar />
@@ -15,13 +14,21 @@ import { ref, provide } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Navbar from './NavBar.vue'
 
-const drawer = ref(true)
+const drawer = ref(false)
+const miniVariant = ref(false) // 添加 miniVariant 变量
+
 const toggleDrawer = () => {
   drawer.value = !drawer.value
 }
 
+const toggleMiniVariant = () => {
+  miniVariant.value = !miniVariant.value
+}
+
 provide('drawer', drawer)
+provide('miniVariant', miniVariant) // 提供 miniVariant
 provide('toggleDrawer', toggleDrawer)
+provide('toggleMiniVariant', toggleMiniVariant) // 提供 toggleMiniVariant
 </script>
 
 <style scoped>

@@ -8,6 +8,7 @@ import pandas as pd
 from core.config import settings
 from api.schemas.user_input import UserInput
 from api.utils.ai_utils import analyze_user_intent_and_generate_sql  # 导入函数
+from sqlalchemy.sql import text
 
 # 加载环境变量
 load_dotenv()
@@ -173,12 +174,12 @@ async def insert_data_from_file(file_path):
         if conn:
             conn.close()
 
-async def execute_sql_query(sql_query, user_input: UserInput, retry_count=3):
-    async with async_session() as session:
+async def execute_sql_query(sql_query: str, user_input, async_session: AsyncSession, retry_count=3):
+    async with async_session as session:  # 修改这里
         async with session.begin():
             for attempt in range(retry_count):
                 try:
-                    result = await session.execute(sql_query)
+                    result = await session.execute(text(sql_query))
                     df = pd.DataFrame(result.fetchall(), columns=result.keys())
                     return df
                 except Exception as e:

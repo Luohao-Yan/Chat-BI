@@ -5,6 +5,7 @@ import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
+import asyncio  # 添加 asyncio 模块
 
 # 加载环境变量
 load_dotenv()
@@ -13,11 +14,6 @@ load_dotenv()
 api_url_14b_chat = os.getenv("API_URL_14B_CHAT")
 api_url_14b_generate = os.getenv("API_URL_14B_GENERATE")
 api_url_72b_chat = os.getenv("API_URL_72B_CHAT")
-
-# 配置日志记录
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
 # 初始化session对象并配置重试机制
 session = requests.Session()
@@ -48,9 +44,9 @@ model_config = {
     },
 }
 
-async def make_api_request(api_url, headers, data):
+def make_api_request(api_url, headers, data):
     try:
-        response = await session.post(api_url, headers=headers, data=json.dumps(data), timeout=120)
+        response = session.post(api_url, headers=headers, data=json.dumps(data), timeout=120)
         response.raise_for_status()
         if response.text.strip():
             return response.json()
@@ -64,7 +60,7 @@ async def make_api_request(api_url, headers, data):
         logging.error(f"JSON解析错误: {e}")
         return None
 
-async def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
+def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
     headers = {"Content-Type": "application/json"}
     data = {
         "model": model,
@@ -78,28 +74,28 @@ async def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
         "max_tokens": 4000,
         "stream": False,
     }
-    result = await make_api_request(api_url, headers, data)
+    result = make_api_request(api_url, headers, data)
     if result and "message" in result and "content" in result["message"]:
         return result["message"]["content"]
     else:
         logging.error("API响应中没有预期的'message'或'content'字段")
         return None
 
-async def call_qwen_generate_14B_api(api_url, model, system_prompt):
+def call_qwen_generate_14B_api(api_url, model, system_prompt):
     headers = {"Content-Type": "application/json"}
     data = {
         "model": model,
         "prompt": system_prompt,
         "stream": False,
     }
-    result = await make_api_request(api_url, headers, data)
+    result = make_api_request(api_url, headers, data)
     if result and "response" in result:
         return result["response"]
     else:
         logging.error("API响应中没有预期的'response'字段")
         return None
 
-async def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
+def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
     headers = {"Content-Type": "application/json"}
     messages = [{"role": "system", "content": system_prompt}]
     if user_input:
@@ -108,12 +104,12 @@ async def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None)
     data = {
         "model": model,
         "messages": messages,
-        "temperature": 0.7,
-        "top_p": 0.8,
+        "temperature": 0.5,
+        "top_p": 1,
         "repetition_penalty": 1.05,
         "stream": False,
     }
-    result = await make_api_request(api_url, headers, data)
+    result = make_api_request(api_url, headers, data)
     if result and "choices" in result and len(result["choices"]) > 0:
         message = result["choices"][0]["message"]
         if "content" in message:
@@ -125,7 +121,7 @@ async def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None)
         logging.error("API响应中没有预期的'choices'字段或'choices'为空")
         return None
 
-async def call_qwen_model(model_type, system_prompt, user_input=None):
+def call_qwen_model(model_type, system_prompt, user_input=None):
     config = model_config.get(model_type)
     if not config:
         logging.error("未知的模型类型")
@@ -136,11 +132,11 @@ async def call_qwen_model(model_type, system_prompt, user_input=None):
     call_function = config["call_function"]
 
     if call_function == "call_qwen_chat_14B_api":
-        return await call_qwen_chat_14B_api(api_url, model, system_prompt, user_input)
+        return call_qwen_chat_14B_api(api_url, model, system_prompt, user_input)
     elif call_function == "call_qwen_generate_14B_api":
-        return await call_qwen_generate_14B_api(api_url, model, system_prompt)
+        return call_qwen_generate_14B_api(api_url, model, system_prompt)
     elif call_function == "call_qwen_chat_72B_api":
-        return await call_qwen_chat_72B_api(api_url, model, system_prompt, user_input)
+        return call_qwen_chat_72B_api(api_url, model, system_prompt, user_input)
     else:
         logging.error("未知的调用函数")
         return None
@@ -281,7 +277,7 @@ COMMENT ON TABLE "public"."grid_first_level_info" IS '一级社区网格信息';
     )
 
     for attempt in range(retry_count):
-        ai_response = await call_qwen_model(model_type, system_prompt, user_input)
+        ai_response = call_qwen_model(model_type, system_prompt, user_input)
 
         if ai_response:
             sql_start = ai_response.find("```sql\n") + len("```sql\n")
@@ -309,14 +305,14 @@ async def refine_data_with_ai(user_input, df):
         "```json\n"
         "{\n"
         '  "x_axis": "column_name",\n'
-        '  "y_axis": "column_name",\n'
+        '  "y_axes": ["column_name1", "column_name2", ...],\n'
         '  "scale": "linear",\n'
         '  "unit": "unit_name"\n'
         "}\n"
         "```"
     )
 
-    ai_response = await call_qwen_model(model_type, system_prompt, user_input)
+    ai_response = await asyncio.to_thread(call_qwen_model, model_type, system_prompt, user_input)
     if ai_response:
         json_start = ai_response.find("```json\n") + len("```json\n")
         json_end = ai_response.find("\n```", json_start)
@@ -332,6 +328,7 @@ async def refine_data_with_ai(user_input, df):
         logging.error("AI未能生成有效的回复")
         return None
 
+
 async def determine_chart_type(user_input, json_data):
     system_prompt = (
         "Based on the user's question and the provided data, determine the most appropriate chart type to visualize the data. "
@@ -346,7 +343,7 @@ async def determine_chart_type(user_input, json_data):
         "```"
     )
 
-    ai_response = await call_qwen_model(model_type, system_prompt, user_input)
+    ai_response = await asyncio.to_thread(call_qwen_model, model_type, system_prompt, user_input)
     if ai_response:
         chart_start = ai_response.find("```chart\n") + len("```chart\n")
         chart_end = ai_response.find("\n```", chart_start)
