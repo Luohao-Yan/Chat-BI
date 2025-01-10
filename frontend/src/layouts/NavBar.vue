@@ -6,9 +6,7 @@
     <v-toolbar-title>Chat BI Lab</v-toolbar-title>
     <v-spacer></v-spacer>
     <v-btn icon @click="toggleTheme">
-      <v-icon>{{
-        isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night'
-        }}</v-icon>
+      <v-icon>{{ isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
     </v-btn>
     <v-menu>
       <template #activator="{ props }">
@@ -19,7 +17,7 @@
       <v-list>
         <v-list-item link>
           <template v-slot:prepend>
-            <v-icon >mdi-home</v-icon>
+            <v-icon>mdi-home</v-icon>
           </template>
           <v-list-item-title>Home</v-list-item-title>
         </v-list-item>
@@ -31,7 +29,7 @@
         </v-list-item>
         <v-list-item link>
           <template v-slot:prepend>
-            <v-icon>mdi-contact-mail</v-icon>
+            <v-icon>mdi-mail</v-icon>
           </template>
           <v-list-item-title>Contact</v-list-item-title>
         </v-list-item>

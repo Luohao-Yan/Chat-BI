@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick, defineEmits } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 
 const props = defineProps<{
@@ -76,13 +76,14 @@ const updateChartOptions = () => {
                     top: '15%',
                     containLabel: true,
                 },
-            } : {}),
-            ...(props.modelValue === 'pie' || props.modelValue === 'doughnut' ? {
+                xAxis: props.options.xAxis,
+                yAxis: props.options.yAxis,
+            } : {
                 xAxis: undefined,
                 yAxis: undefined,
                 grid: undefined, // 移除 grid 配置
                 dataZoom: undefined, // 移除 dataZoom 配置
-            } : {}),
+            }),
         }
         console.log('Setting chart options:', updatedOptions)
         myChart.setOption(updatedOptions)
@@ -93,6 +94,9 @@ const updateChartOptions = () => {
 
 const setChartType = (type: 'bar' | 'line' | 'pie' | 'doughnut') => {
     emit('update:modelValue', type)
+    nextTick(() => {
+        updateChartOptions() // 确保每次切换图表类型时都能正确更新图表配置
+    })
 }
 
 onMounted(() => {
@@ -145,17 +149,17 @@ watch(
 
 <template>
     <div class="chart-container relative">
-        <div class="settings-bar absolute top-0 left-0 w-full flex justify-end p-2 bg-white shadow-md">
-            <v-btn icon @click="setChartType('line')">
+        <div class="settings-bar absolute top-0 left-0 w-full flex justify-end p-2">
+            <v-btn icon @click="setChartType('line')" :class="{'active': props.modelValue === 'line'}">
                 <v-icon>mdi-chart-line</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('bar')">
+            <v-btn icon @click="setChartType('bar')" :class="{'active': props.modelValue === 'bar'}">
                 <v-icon>mdi-chart-bar</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('pie')">
+            <v-btn icon @click="setChartType('pie')" :class="{'active': props.modelValue === 'pie'}">
                 <v-icon>mdi-chart-pie</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('doughnut')">
+            <v-btn icon @click="setChartType('doughnut')" :class="{'active': props.modelValue === 'doughnut'}">
                 <v-icon>mdi-chart-donut</v-icon>
             </v-btn>
         </div>
@@ -177,6 +181,11 @@ watch(
     display: flex;
     justify-content: flex-end;
     z-index: 10;
+}
+
+.chart-container .v-btn.active {
+    background-color: #1976d2;
+    color: white;
 }
 
 .chart-container .v-btn {

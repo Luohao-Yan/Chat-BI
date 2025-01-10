@@ -16,11 +16,25 @@ const lightTheme = {
   },
 };
 
+const darkTheme = {
+  dark: true,
+  colors: {
+    primary: colors.primary,
+    secondary: colors.secondary,
+    accent: colors.accent,
+    error: colors.error,
+    info: colors.info,
+    success: colors.success,
+    warning: colors.warning,
+  },
+};
+
 export default createVuetify({
   theme: {
     defaultTheme: 'lightTheme',
     themes: {
       lightTheme,
+      darkTheme,
     },
   },
   icons: {
