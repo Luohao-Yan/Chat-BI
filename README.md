@@ -125,8 +125,8 @@ Support Vuetify: https://github.com/sponsors/johnleider
 
 
 
-## Stargazers over time
-[![Stargazers over time](https://starchart.cc/Luohao-Yan/starcharts.svg?background=%23FFFFFF&axis=%23333333&line=%236b63ff)](https://starchart.cc/Luohao-Yan/chatbi-poc)
+## Star 历史
+[![Stargazers over time](https://starchart.cc/Luohao-Yan/chatbi-poc.svg)](https://starchart.cc/Luohao-Yan/chatbi-poc)
 
 ## 贡献者
 感谢以下所有贡献者：
