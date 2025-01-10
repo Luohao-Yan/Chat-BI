@@ -1,9 +1,9 @@
-// src/main.ts
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import vuetify from './plugins/vuetify';
 import '@mdi/font/css/materialdesignicons.css'; // 导入 mdi 图标库
+import 'vuetify/styles'; // 导入 Vuetify 样式
 import './main.css'; // 导入 Tailwind CSS
 
 // 引入 ECharts 所需模块

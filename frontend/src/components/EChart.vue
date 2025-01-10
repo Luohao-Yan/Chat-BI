@@ -1,41 +1,28 @@
-<template>
-    <div class="chart-container relative">
-        <div class="settings-bar absolute top-0 left-0 w-full flex justify-end p-2 bg-white shadow-md">
-            <v-btn icon @click="setChartType('line')">
-                <v-icon>mdi-chart-line</v-icon>
-            </v-btn>
-            <v-btn icon @click="setChartType('bar')">
-                <v-icon>mdi-chart-bar</v-icon>
-            </v-btn>
-            <v-btn icon @click="setChartType('pie')">
-                <v-icon>mdi-chart-pie</v-icon>
-            </v-btn>
-            <v-btn icon @click="setChartType('doughnut')">
-                <v-icon>mdi-chart-donut</v-icon>
-            </v-btn>
-        </div>
-        <div v-if="chartReady" ref="chart" class="chart-container mt-12"></div>
-    </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick, defineEmits } from 'vue'
 import * as echarts from 'echarts'
 
 const props = defineProps<{
     options: echarts.EChartsOption
     loading: boolean
+    modelValue: 'bar' | 'line' | 'pie' | 'doughnut'
 }>()
+
+const emit = defineEmits(['update:modelValue'])
 
 const chart = ref<HTMLElement | null>(null)
 let myChart: echarts.ECharts | null = null
-const chartType = ref<'bar' | 'line' | 'pie' | 'doughnut'>('bar')
 const chartReady = ref(false)
 
 const initChart = async () => {
+    await nextTick()
     if (chart.value) {
+        // 检查是否已经存在 ECharts 实例，如果存在则销毁它
+        if (myChart) {
+            console.log('Disposing existing ECharts instance')
+            myChart.dispose();
+        }
         console.log('Initializing chart with element:', chart.value)
-        await nextTick()
         myChart = echarts.init(chart.value)
         console.log('ECharts instance created:', myChart)
         updateChartOptions()
@@ -54,13 +41,13 @@ const resizeChart = () => {
 
 const updateChartOptions = () => {
     if (myChart) {
-        console.log('Updating chart options with type:', chartType.value)
+        console.log('Updating chart options with type:', props.modelValue)
         const updatedOptions = {
             ...props.options,
             series: (props.options.series as echarts.SeriesOption[])?.map((series: any) => ({
                 ...series,
-                type: chartType.value === 'doughnut' ? 'pie' : chartType.value,
-                ...(chartType.value === 'pie' || chartType.value === 'doughnut' ? {
+                type: props.modelValue === 'doughnut' ? 'pie' : props.modelValue,
+                ...(props.modelValue === 'pie' || props.modelValue === 'doughnut' ? {
                     label: {
                         show: true,
                         position: 'outside',
@@ -69,10 +56,10 @@ const updateChartOptions = () => {
                     labelLine: {
                         show: true
                     },
-                    radius: chartType.value === 'doughnut' ? ['40%', '70%'] : '50%', // 设置饼图和环形图的大小
+                    radius: props.modelValue === 'doughnut' ? ['40%', '70%'] : '50%', // 设置饼图和环形图的大小
                 } : {}),
             })),
-            ...(chartType.value !== 'pie' && chartType.value !== 'doughnut' ? {
+            ...(props.modelValue !== 'pie' && props.modelValue !== 'doughnut' ? {
                 dataZoom: [
                     {
                         type: 'slider',
@@ -90,7 +77,7 @@ const updateChartOptions = () => {
                     containLabel: true,
                 },
             } : {}),
-            ...(chartType.value === 'pie' || chartType.value === 'doughnut' ? {
+            ...(props.modelValue === 'pie' || props.modelValue === 'doughnut' ? {
                 xAxis: undefined,
                 yAxis: undefined,
                 grid: undefined, // 移除 grid 配置
@@ -105,8 +92,7 @@ const updateChartOptions = () => {
 }
 
 const setChartType = (type: 'bar' | 'line' | 'pie' | 'doughnut') => {
-    chartType.value = type
-    updateChartOptions()
+    emit('update:modelValue', type)
 }
 
 onMounted(() => {
@@ -148,48 +134,34 @@ watch(
     }
 )
 
-// 监听 chartReady 和 chart 元素的变化
 watch(
-    () => chartReady.value,
-    (newReady) => {
-        console.log('Chart ready state changed:', newReady)
-        if (newReady && chart.value) {
-            initChart()
-        }
-    }
-)
-
-watch(
-    () => chart.value,
-    (newChart) => {
-        console.log('Chart element changed:', newChart)
-        if (newChart) {
-            initChart()
-        }
-    }
-)
-
-// 监听 chart 元素的尺寸变化
-watch(
-    () => chart.value?.clientWidth,
-    (newWidth) => {
-        console.log('Chart element width changed:', newWidth)
-        if (newWidth && newWidth > 0) {
-            initChart()
-        }
-    }
-)
-
-watch(
-    () => chart.value?.clientHeight,
-    (newHeight) => {
-        console.log('Chart element height changed:', newHeight)
-        if (newHeight && newHeight > 0) {
-            initChart()
-        }
+    () => props.modelValue,
+    (newType) => {
+        console.log('Chart type changed:', newType)
+        updateChartOptions()
     }
 )
 </script>
+
+<template>
+    <div class="chart-container relative">
+        <div class="settings-bar absolute top-0 left-0 w-full flex justify-end p-2 bg-white shadow-md">
+            <v-btn icon @click="setChartType('line')">
+                <v-icon>mdi-chart-line</v-icon>
+            </v-btn>
+            <v-btn icon @click="setChartType('bar')">
+                <v-icon>mdi-chart-bar</v-icon>
+            </v-btn>
+            <v-btn icon @click="setChartType('pie')">
+                <v-icon>mdi-chart-pie</v-icon>
+            </v-btn>
+            <v-btn icon @click="setChartType('doughnut')">
+                <v-icon>mdi-chart-donut</v-icon>
+            </v-btn>
+        </div>
+        <div v-if="chartReady" ref="chart" class="chart-container mt-12"></div>
+    </div>
+</template>
 
 <style scoped>
 .chart-container {

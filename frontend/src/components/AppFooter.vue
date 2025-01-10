@@ -1,6 +1,6 @@
 <template>
   <v-footer app>
-    <span>&copy; 2025-1-7 鄢罗浩设计</span>
+    <span>&copy; 2025-1-7 Luohao design</span>
   </v-footer>
 </template>
 

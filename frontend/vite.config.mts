@@ -6,7 +6,7 @@ import Layouts from 'vite-plugin-vue-layouts'
 import Vue from '@vitejs/plugin-vue'
 import VueRouter from 'unplugin-vue-router/vite'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
-import Pages from 'vite-plugin-pages'  // 添加这一行
+import Pages from 'vite-plugin-pages'
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -19,7 +19,7 @@ export default defineConfig({
       dts: 'src/typed-router.d.ts',
     }),
     Layouts(),
-    Pages(),  // 添加这一行
+    Pages(),
     AutoImport({
       imports: [
         'vue',
@@ -39,16 +39,15 @@ export default defineConfig({
     Vue({
       template: { transformAssetUrls },
     }),
-    // https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin#readme
     Vuetify({
       autoImport: true,
-      styles: {
-        configFile: 'src/styles/settings.scss',
-      },
+      // styles: {
+      //   configFile: 'src/styles/settings.scss',
+      // },
     }),
     Fonts({
       google: {
-        families: [ {
+        families: [{
           name: 'Roboto',
           styles: 'wght@100;300;400;500;700;900',
         }],
@@ -76,7 +75,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       sass: {
-        api: 'modern-compiler',
+        additionalData: `@import "@/styles/settings.scss";`
       },
     },
   },
