@@ -1,7 +1,16 @@
 # ChatBI-POC
 
-## 启动效果
-![alt text](public/WechatIMG993.jpg) ![alt text](public/WechatIMG994.jpg) ![alt text](public/WechatIMG995.jpg) ![alt text](public/WechatIMG996.jpg) ![alt text](public/WechatIMG997.jpg) ![alt text](public/WechatIMG998.jpg) ![alt text](public/WechatIMG999.jpg)
+## 启动UI效果
+<div style="display: flex; flex-wrap: wrap;">
+  <img src="public/WechatIMG993.jpg" alt="UI效果1" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG994.jpg" alt="UI效果2" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG995.jpg" alt="UI效果3" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG996.jpg" alt="UI效果4" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG997.jpg" alt="UI效果5" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG998.jpg" alt="UI效果6" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG999.jpg" alt="UI效果7" style="width: 48%; margin: 1%;">
+  <img src="public/WechatIMG1000.png" alt="UI效果8" style="width: 48%; margin: 1%;">
+</div>
 
 ## 启动数据库
 `docker-compose up -d`
@@ -51,72 +60,7 @@ Vuetify.js - Material Component Framework for Vue
 - Nuxt Barebones (Only Vuetify): 仅包含Nuxt和Vuetify，适合希望从头开始配置Nuxt项目的开发者。
 - Nuxt Default (Adds Nuxt ESLint & SASS variables): 包含Nuxt的基础配置，适合大多数Nuxt项目。
 - Nuxt Recommended (Everything from Default. Enables auto importing & layouts): 包含Nuxt Default预设的所有内容，并增加了自动导入和布局，适合希望快速上手并使用更多功能的Nuxt开发者。
-
-
-- 使用pnpm，并且它在性能和磁盘空间管理方面有显著优势，建议继续使用pnpm来安装依赖
-```
-(poc-demo) (base) yanluohao@yanluohaodeMacBook-Pro frontend % pnpm create vuetify
-
- WARN  GET https://registry.npmjs.org/sisteransi error (ENOTFOUND). Will retry in 10 seconds. 2 retries left.
-.../Library/pnpm/store/v3/tmp/dlx-9544   |  +16 ++
-.../Library/pnpm/store/v3/tmp/dlx-9544   | Progress: resolved 16, reused 9, downloaded 7, added 16, done
-
-Vuetify.js - Material Component Framework for Vue
-
-✔ Project name: … chatbi
-✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
-✔ Use TypeScript? … No / Yes
-? Would you like to install dependencies with yarn, npm, pnpm, or bun? › - Use arrow-keys. Return to submit.
-    yarn
-    npm
-❯   pnpm
-    bun
-    none
-```
-选项说明
-- yarn: 一个快速、可靠且安全的包管理工具，具有并行安装和锁定文件的功能，确保一致的依赖关系。
-- npm: Node.js的默认包管理工具，广泛使用且功能强大，适合大多数项目。
-- pnpm: 一个高效的包管理工具，通过硬链接和符号链接来节省磁盘空间和安装时间，适合大型项目。
-- bun: 一个新的包管理工具，专注于速度和性能，但目前还在快速发展中，可能不如其他工具稳定。
-- none: 不自动安装依赖，适合希望手动管理依赖的开发者。
-
-- 询问你是否希望在项目创建完成后立即安装项目的依赖项。选择Yes会自动安装所有的依赖项，选择No则不会自动安装依赖项
-
-```
-✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
-? Install Dependencies? › No / Yes
-```
-选项说明
-- Yes: 自动安装项目的所有依赖项。推荐选择这个选项，这样你可以立即开始开发，而不需要手动安装依赖项。
-- No: 不自动安装依赖项。选择这个选项后，你需要手动运行pnpm install来安装依赖项。
-
-在选择pnpm后，选择Yes来安装依赖项：
-
-```
-✔ Project name: … chatbi
-✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
-✔ Use TypeScript? … Yes
-✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
-✔ Install Dependencies? › Yes
-```
-
-```
-(poc-demo) (base) yanluohao@yanluohaodeMacBook-Pro frontend % pnpm create vuetify
-
- WARN  GET https://registry.npmjs.org/sisteransi error (ENOTFOUND). Will retry in 10 seconds. 2 retries left.
-.../Library/pnpm/store/v3/tmp/dlx-9544   |  +16 ++
-.../Library/pnpm/store/v3/tmp/dlx-9544   | Progress: resolved 16, reused 9, downloaded 7, added 16, done
-
-Vuetify.js - Material Component Framework for Vue
-
-✔ Project name: … chatbi
-✔ Which preset would you like to install? › Recommended (Everything from Default. Adds auto importing, layouts & pinia)
-✔ Use TypeScript? … No / Yes
-✔ Would you like to install dependencies with yarn, npm, pnpm, or bun? › pnpm
-✔ Install Dependencies? … No / Yes
-
-◌ Generating scaffold...
-◌ Installing dependencies with pnpm...
+...
 
 
    ╭──────────────────────────────────────────────────────────────────╮
@@ -176,6 +120,16 @@ Github: https://github.com/vuetifyjs/vuetify
 Support Vuetify: https://github.com/sponsors/johnleider
 ```
 
+## GitHub 项目 Star 数
+![GitHub stars](https://img.shields.io/github/stars/your_username/chatbi-poc?style=social)
+
+## Star 历史
+[![Star History Chart](https://starchart.cc/your_username/chatbi-poc.svg)](https://starchart.cc/your_username/chatbi-poc)
+
+## 贡献者
+感谢以下所有贡献者：
+
+[![Contributors](https://contrib.rocks/image?repo=your_username/chatbi-poc)](https://github.com/your_username/chatbi-poc/graphs/contributors)
 
 # git 提交代码到GitHub仓库
 
