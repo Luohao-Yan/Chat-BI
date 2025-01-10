@@ -61,7 +61,7 @@ Vuetify.js - Material Component Framework for Vue
 - Nuxt Default (Adds Nuxt ESLint & SASS variables): 包含Nuxt的基础配置，适合大多数Nuxt项目。
 - Nuxt Recommended (Everything from Default. Enables auto importing & layouts): 包含Nuxt Default预设的所有内容，并增加了自动导入和布局，适合希望快速上手并使用更多功能的Nuxt开发者。
 ...
-
+```
 
    ╭──────────────────────────────────────────────────────────────────╮
    │                                                                  │
