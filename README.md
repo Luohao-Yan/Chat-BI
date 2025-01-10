@@ -121,15 +121,15 @@ Support Vuetify: https://github.com/sponsors/johnleider
 ```
 
 ## GitHub 项目 Star 数
-![GitHub stars](https://img.shields.io/github/stars/your_username/chatbi-poc?style=social)
+![GitHub stars](https://img.shields.io/github/stars/Luohao-Yan/chatbi-poc?style=social)
 
 ## Star 历史
-[![Star History Chart](https://starchart.cc/your_username/chatbi-poc.svg)](https://starchart.cc/your_username/chatbi-poc)
+[![Star History Chart](https://starchart.cc/Luohao-Yan/chatbi-poc.svg)](https://starchart.cc/Luohao-Yan/chatbi-poc)
 
 ## 贡献者
 感谢以下所有贡献者：
 
-[![Contributors](https://contrib.rocks/image?repo=your_username/chatbi-poc)](https://github.com/your_username/chatbi-poc/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Luohao-Yan/chatbi-poc)](https://github.com/Luohao-Yan/chatbi-poc/graphs/contributors)
 
 # git 提交代码到GitHub仓库
 
