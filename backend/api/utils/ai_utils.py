@@ -6,6 +6,7 @@ from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
 import asyncio  # 添加 asyncio 模块
+import aiohttp
 
 # 加载环境变量
 load_dotenv()
@@ -18,8 +19,8 @@ api_url_72b_chat = os.getenv("API_URL_72B_CHAT")
 # 初始化session对象并配置重试机制
 session = requests.Session()
 retries = Retry(total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-session.mount('http://', HTTPAdapter(max_retries=retries))
-session.mount('https://', HTTPAdapter(max_retries=retries))
+session.mount("http://", HTTPAdapter(max_retries=retries))
+session.mount("https://", HTTPAdapter(max_retries=retries))
 
 # 使用模型选择
 # 定义模型类型变量
@@ -44,21 +45,35 @@ model_config = {
     },
 }
 
+
 def make_api_request(api_url, headers, data):
     try:
-        response = session.post(api_url, headers=headers, data=json.dumps(data), timeout=120)
+        # 增加超时时间到180秒
+        response = session.post(
+            api_url, headers=headers, data=json.dumps(data), timeout=180
+        )
         response.raise_for_status()
         if response.text.strip():
             return response.json()
         else:
             logging.error("API响应为空")
             return None
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"连接错误: {e}")
+        return None
+    except requests.exceptions.Timeout as e:
+        logging.error(f"请求超时: {e}")
+        return None
     except requests.exceptions.RequestException as e:
         logging.error(f"HTTP请求错误: {e}")
         return None
     except json.JSONDecodeError as e:
         logging.error(f"JSON解析错误: {e}")
         return None
+    except Exception as e:
+        logging.error(f"未知错误: {e}")
+        return None
+
 
 def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
     headers = {"Content-Type": "application/json"}
@@ -81,6 +96,7 @@ def call_qwen_chat_14B_api(api_url, model, system_prompt, user_input):
         logging.error("API响应中没有预期的'message'或'content'字段")
         return None
 
+
 def call_qwen_generate_14B_api(api_url, model, system_prompt):
     headers = {"Content-Type": "application/json"}
     data = {
@@ -94,6 +110,7 @@ def call_qwen_generate_14B_api(api_url, model, system_prompt):
     else:
         logging.error("API响应中没有预期的'response'字段")
         return None
+
 
 def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
     headers = {"Content-Type": "application/json"}
@@ -121,6 +138,7 @@ def call_qwen_chat_72B_api(api_url, model, system_prompt, user_input=None):
         logging.error("API响应中没有预期的'choices'字段或'choices'为空")
         return None
 
+
 def call_qwen_model(model_type, system_prompt, user_input=None):
     config = model_config.get(model_type)
     if not config:
@@ -141,9 +159,77 @@ def call_qwen_model(model_type, system_prompt, user_input=None):
         logging.error("未知的调用函数")
         return None
 
+
+async def get_configured_ai_model():
+    """获取配置的AI模型"""
+    try:
+        from api.endpoints.ai_model_config import get_current_ai_config
+        return await get_current_ai_config()
+    except Exception as e:
+        logging.error(f"获取AI配置失败: {e}")
+        return None
+
+async def call_configured_ai_model(system_prompt, user_input=None):
+    """调用配置的AI模型"""
+    config = await get_configured_ai_model()
+    
+    if config:
+        # 使用配置的模型
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config['apiKey']}"
+            }
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            if user_input:
+                messages.append({"role": "user", "content": user_input})
+            
+            data = {
+                "model": config['model'],
+                "messages": messages,
+                "temperature": config.get('temperature', 0.7),
+                "max_tokens": config.get('maxTokens', 2000)
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(config['baseUrl'], json=data, headers=headers) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if 'choices' in result and len(result['choices']) > 0:
+                            return result['choices'][0]['message']['content']
+                    else:
+                        error_text = await response.text()
+                        logging.error(f"配置的AI调用失败: HTTP {response.status}: {error_text}")
+                        
+        except Exception as e:
+            logging.error(f"调用配置的AI模型失败: {e}")
+    
+    # 如果配置模型失败，回退到原有模型
+    logging.info("回退到原有AI模型")
+    return call_qwen_model(model_type, system_prompt, user_input)
+
 async def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
+    # 动态获取当前时间信息
+    from datetime import datetime
+    import pytz
+    
+    # 获取中国时区的当前时间
+    china_tz = pytz.timezone('Asia/Shanghai')
+    current_time = datetime.now(china_tz)
+    current_year = current_time.year
+    current_month = current_time.month
+    current_date = current_time.strftime('%Y-%m-%d')
+    
     system_prompt = (
         "Analyze the user input and generate the corresponding SQL query based on the existing database table clause. "
+        f"CURRENT TIME CONTEXT: Today is {current_date}, current year is {current_year}, current month is {current_month}. "
+        "IMPORTANT: The data in the database spans from June 2024 to December 2024. "
+        "When users mention months without specifying year (like '8月', '9月', 'August', 'September'), "
+        f"intelligently determine the year based on context - if they're asking about recent months and it's {current_year}, "
+        f"they likely mean {current_year} if the month has data, otherwise assume 2024. "
+        "Always consider data availability when choosing the year. "
         """My database build statement:\n\n
         珠海高新区人口概览信息流水表:CREATE TABLE "public"."pl_mobile_people_flow_data" (
   "id" int4 NOT NULL DEFAULT nextval('mobile_people_id_seq'::regclass),
@@ -189,14 +275,14 @@ CREATE TABLE "public"."mobile_day_flow_tag" (
 WITH (fillfactor=80)
 ;
 
-ALTER TABLE "public"."mobile_day_flow_tag" 
+ALTER TABLE "mobile_day_flow_tag" 
   OWNER TO "postgres";
 
 COMMENT ON COLUMN "public"."mobile_day_flow_tag"."label_cnt" IS '人数';
 
 COMMENT ON COLUMN "public"."mobile_day_flow_tag"."tag" IS '标签类别，例如省外来源，省内来源，性别，年龄等';
 
-COMMENT ON COLUMN "public"."mobile_day_flow_tag"."label" IS '标签名称，例如标签类别为省内来源时，标签名称为“珠海”';
+COMMENT ON COLUMN "public"."mobile_day_flow_tag"."label" IS '标签名称，例如标签类别为省内来源时，标签名称为"珠海"';
 
 COMMENT ON COLUMN "public"."mobile_day_flow_tag"."type" IS '1=日驻留、2=新流入、3=新流出';
 珠海高新区年末常驻人口信息表:
@@ -273,26 +359,44 @@ COMMENT ON TABLE "public"."grid_first_level_info" IS '一级社区网格信息';
         "The SQL query must be formatted in Markdown as follows:\n\n"
         "```sql\n"
         "SELECT * FROM table_name;\n"
-        "```"
+        "```\n\n"
+        f"TIME INTELLIGENCE RULES:\n"
+        f"1. Current date: {current_date}\n"
+        f"2. Available data range: June 2024 - December 2024\n"
+        f"3. When user asks about months without year, choose the most logical year based on data availability\n"
+        f"4. For historical analysis, prefer 2024 data when available\n"
+        f"5. Always validate that your chosen date range has data in the database"
     )
 
     for attempt in range(retry_count):
-        ai_response = call_qwen_model(model_type, system_prompt, user_input)
+        try:
+            ai_response = await call_configured_ai_model(system_prompt, user_input)
 
-        if ai_response:
-            sql_start = ai_response.find("```sql\n") + len("```sql\n")
-            sql_end = ai_response.find("\n```", sql_start)
-            sql_query = ai_response[sql_start:sql_end].strip()
-            
-            if sql_query:
-                return sql_query
+            if ai_response:
+                sql_start = ai_response.find("```sql\n") + len("```sql\n")
+                sql_end = ai_response.find("\n```", sql_start)
+                sql_query = ai_response[sql_start:sql_end].strip()
+
+                if sql_query:
+                    return sql_query
+                else:
+                    logging.warning(
+                        f"第 {attempt + 1} 次尝试未能从AI的回复中提取SQL语句"
+                    )
             else:
-                logging.warning(f"第 {attempt + 1} 次尝试未能从AI的回复中提取SQL语句")
-        else:
-            logging.warning(f"第 {attempt + 1} 次尝试AI未能生成有效的回复")
+                logging.warning(f"第 {attempt + 1} 次尝试AI未能生成有效的回复")
+        except Exception as e:
+            logging.error(f"第 {attempt + 1} 次尝试发生错误: {e}")
 
-    logging.error("多次尝试后仍未能生成SQL语句")
-    return None
+    # 如果所有尝试都失败，返回一个默认的SQL查询
+    logging.error("多次尝试后仍未能生成SQL语句，返回默认查询")
+    if "车流" in user_input or "人流量" in user_input:
+        return "SELECT statistics_date, all_count, in_count, out_count FROM pl_mobile_people_flow_data ORDER BY statistics_date DESC LIMIT 10"
+    elif "人口" in user_input:
+        return "SELECT date_time, num FROM pl_pop_trend_of_end_year ORDER BY date_time DESC LIMIT 10"
+    else:
+        return "SELECT * FROM pl_mobile_people_flow_data ORDER BY statistics_date DESC LIMIT 10"
+
 
 async def refine_data_with_ai(user_input, df):
     system_prompt = (
@@ -312,12 +416,12 @@ async def refine_data_with_ai(user_input, df):
         "```"
     )
 
-    ai_response = await asyncio.to_thread(call_qwen_model, model_type, system_prompt, user_input)
+    ai_response = await call_configured_ai_model(system_prompt, user_input)
     if ai_response:
         json_start = ai_response.find("```json\n") + len("```json\n")
         json_end = ai_response.find("\n```", json_start)
         json_data = ai_response[json_start:json_end].strip()
-        
+
         try:
             refined_data = json.loads(json_data)
             return refined_data
@@ -326,6 +430,51 @@ async def refine_data_with_ai(user_input, df):
             return None
     else:
         logging.error("AI未能生成有效的回复")
+        return None
+
+
+async def generate_insight_analysis(user_input, df):
+    # 动态获取当前时间信息
+    from datetime import datetime
+    import pytz
+    
+    # 获取中国时区的当前时间
+    china_tz = pytz.timezone('Asia/Shanghai')
+    current_time = datetime.now(china_tz)
+    current_date = current_time.strftime('%Y-%m-%d')
+    current_year = current_time.year
+    current_month = current_time.month
+    
+    system_prompt = (
+        "基于用户的问题和查询结果，生成深入的洞察分析。分析应该简洁明了，并提供从数据中得出的有意义的见解。\n\n"
+        f"当前时间上下文：今天是{current_date}，当前年份是{current_year}年{current_month}月\n"
+        f"数据时间范围：2024年6月至12月\n\n"
+        f"用户问题：{user_input}\n\n"
+        f"查询结果：\n{df.to_json(orient='records', force_ascii=False)}\n\n"
+        "请按照以下Markdown格式返回分析结果：\n\n"
+        "## 📊 数据洞察分析\n\n"
+        "### 🔍 关键发现\n"
+        "- **核心指标**：[描述主要数据指标]\n"
+        "- **数据趋势**：[描述数据变化趋势]\n"
+        "- **对比分析**：[如有对比数据，进行分析]\n\n"
+        "### 💡 深度解读\n"
+        "[详细分析数据背后的原因和意义]\n\n"
+        "### 📈 业务启示\n"
+        "1. **短期影响**：[分析对当前的影响]\n"
+        "2. **长期趋势**：[预测未来可能的发展]\n"
+        "3. **行动建议**：[基于数据提供的建议]\n\n"
+        "### 🎯 关注要点\n"
+        "> [重点提醒或需要特别关注的数据点]\n\n"
+        "请确保分析内容准确、有见地，并与用户的问题紧密相关。使用中文回答。"
+    )
+
+    ai_response = await call_configured_ai_model(system_prompt, user_input)
+    if ai_response:
+        # 直接返回AI响应，不再寻找特定格式标记
+        # AI应该直接返回格式化的Markdown内容
+        return ai_response.strip()
+    else:
+        logging.error("AI未能生成有效的洞察分析")
         return None
 
 
@@ -343,13 +492,13 @@ async def determine_chart_type(user_input, json_data):
         "```"
     )
 
-    ai_response = await asyncio.to_thread(call_qwen_model, model_type, system_prompt, user_input)
+    ai_response = await call_configured_ai_model(system_prompt, user_input)
     if ai_response:
         chart_start = ai_response.find("```chart\n") + len("```chart\n")
         chart_end = ai_response.find("\n```", chart_start)
         chart_type = ai_response[chart_start:chart_end].strip()
-        
-        if chart_type in ['bar', 'line', 'pie', 'scatter', 'histogram']:
+
+        if chart_type in ["bar", "line", "pie", "scatter", "histogram"]:
             return chart_type
         else:
             logging.error("AI生成的图表类型无效")

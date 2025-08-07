@@ -12,13 +12,24 @@
   <img src="public/WechatIMG1000.png" alt="UI效果8" style="width: 48%; margin: 1%;">
 </div>
 
-## 启动数据库
-`docker-compose up -d`
-
-## 启动应用脚本
-```python 
-python main.py
+# 环境准备
+## 安装激活chatbi 虚拟环境
 ```
+conda activate chatbi
+```
+## 使用 pip 安装 requirements.txt 文件中的库
+```
+pip install -r requirements.txt
+```
+## 运行docker 启动PG数据库
+```
+docker-compose up -d
+```
+## 初始化数据库
+```
+python backend/init_db.py
+```
+
 运行后会根据用户的问题生成一张图表。
 
 # 前端项目创建流程

@@ -31,6 +31,8 @@ class Settings:
 
     # 组合生成 DATABASE_URL
     DATABASE_URL: str = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 
     @property
     def RELOAD(self) -> bool:

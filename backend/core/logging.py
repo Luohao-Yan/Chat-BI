@@ -1,6 +1,8 @@
 import logging
+from core.config import settings
 
-# 配置日志记录
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging():
+    logging.basicConfig(
+        level=settings.FASTAPI_LOG_LEVEL.upper(),
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
