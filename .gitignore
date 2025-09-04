@@ -18,3 +18,5 @@ __pycache__/
 
 # 忽略所有的 .idea 目录（例如 PyCharm 项目文件）
 .idea/
+
+mock/*
