@@ -19,4 +19,5 @@ __pycache__/
 # 忽略所有的 .idea 目录（例如 PyCharm 项目文件）
 .idea/
 
+# 忽略 mock 目录下的文件，但保留文件夹
 mock/*
