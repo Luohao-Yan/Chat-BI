@@ -9,6 +9,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AIModelConfig: typeof import('./components/AIModelConfig.vue')['default']
     AppFooter: typeof import('./components/AppFooter.vue')['default']
+    ChatInput: typeof import('./components/ChatInput.vue')['default']
     EChart: typeof import('./components/EChart.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     Home: typeof import('./components/Home.vue')['default']

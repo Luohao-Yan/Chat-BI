@@ -1,20 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { setupLayouts } from 'virtual:generated-layouts'
 import autoRoutes from 'virtual:generated-pages'
-import Home from '@/components/Home.vue'
-
-const routes = [
-  {
-    path: '/',
-    name: 'Home',
-    component: Home
-  },
-  // 其他路由配置
-]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: setupLayouts([...routes, ...autoRoutes]),
+  routes: setupLayouts(autoRoutes),
 })
 
 // Workaround for https://github.com/vitejs/vite/issues/11804
