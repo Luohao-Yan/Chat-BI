@@ -34,6 +34,27 @@ class Settings:
     
     REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 
+    # MinIO配置
+    MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+    MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+    MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin123")
+    MINIO_BUCKET: str = os.getenv("MINIO_BUCKET", "chatbi-datasets")
+    MINIO_SECURE: bool = os.getenv("MINIO_SECURE", "False").lower() in ("true", "1", "t")
+
+    # Qdrant向量数据库配置
+    QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "chatbi_columns")
+
+    # OpenAI配置(用于Embedding)
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    # Qwen3-Embedding-8B维度为4096, text-embedding-3-small维度为1536
+    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", 4096))
+
+    # 文件上传配置
+    MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", 100 * 1024 * 1024))  # 100MB
+    ALLOWED_EXTENSIONS: list = [".csv", ".xlsx", ".xls", ".et"]  # 支持CSV和Excel (.et为WPS格式，可能需要转换)
+
     @property
     def RELOAD(self) -> bool:
         return self.FASTAPI_ENV == "development"

@@ -160,19 +160,62 @@ def call_qwen_model(model_type, system_prompt, user_input=None):
         return None
 
 
-async def get_configured_ai_model():
-    """获取配置的AI模型"""
+async def get_configured_ai_model(user_id: int = 1):
+    """
+    获取配置的AI模型
+
+    优先从Redis获取用户选择的模型配置
+    如果Redis中没有,则从数据库获取默认配置
+
+    Args:
+        user_id: 用户ID,默认为1
+
+    Returns:
+        模型配置字典,包含apiKey, baseUrl, model等信息
+    """
     try:
-        from api.endpoints.ai_model_config import get_current_ai_config
-        return await get_current_ai_config()
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from services.model_cache_service import ModelCacheService
+        from db.session import async_session
+
+        async with async_session() as db:
+            # 从Redis/数据库获取用户选择的模型配置
+            model_config = await ModelCacheService.get_user_selected_model(
+                user_id=user_id,
+                db=db
+            )
+
+            if model_config:
+                return {
+                    'apiKey': model_config.get('api_key', ''),
+                    'baseUrl': model_config.get('api_url', ''),
+                    'model': model_config.get('model_name', ''),
+                    'temperature': model_config.get('temperature', 0.7),
+                    'maxTokens': model_config.get('max_tokens', 2000)
+                }
+
+            logging.warning(f"用户{user_id}没有可用的AI模型配置")
+            return None
     except Exception as e:
         logging.error(f"获取AI配置失败: {e}")
         return None
 
-async def call_configured_ai_model(system_prompt, user_input=None):
-    """调用配置的AI模型"""
-    config = await get_configured_ai_model()
-    
+async def call_configured_ai_model(system_prompt, user_input=None, user_id: int = 1, return_usage: bool = False):
+    """
+    调用配置的AI模型
+
+    Args:
+        system_prompt: 系统提示词
+        user_input: 用户输入(可选)
+        user_id: 用户ID,用于获取用户选择的模型配置
+        return_usage: 是否返回token使用量信息
+
+    Returns:
+        如果return_usage=False: AI模型的响应内容
+        如果return_usage=True: (响应内容, token使用量字典)
+    """
+    config = await get_configured_ai_model(user_id=user_id)
+
     if config:
         # 使用配置的模型
         try:
@@ -180,51 +223,80 @@ async def call_configured_ai_model(system_prompt, user_input=None):
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {config['apiKey']}"
             }
-            
+
             messages = [{"role": "system", "content": system_prompt}]
             if user_input:
                 messages.append({"role": "user", "content": user_input})
-            
+
             data = {
                 "model": config['model'],
                 "messages": messages,
                 "temperature": config.get('temperature', 0.7),
                 "max_tokens": config.get('maxTokens', 2000)
             }
-            
+
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(config['baseUrl'], json=data, headers=headers) as response:
                     if response.status == 200:
                         result = await response.json()
                         if 'choices' in result and len(result['choices']) > 0:
-                            return result['choices'][0]['message']['content']
+                            content = result['choices'][0]['message']['content']
+
+                            # 提取token使用量
+                            if return_usage:
+                                usage = result.get('usage', {})
+                                token_info = {
+                                    'prompt_tokens': usage.get('prompt_tokens', 0),
+                                    'completion_tokens': usage.get('completion_tokens', 0),
+                                    'total_tokens': usage.get('total_tokens', 0)
+                                }
+                                return content, token_info
+                            else:
+                                return content
                     else:
                         error_text = await response.text()
                         logging.error(f"配置的AI调用失败: HTTP {response.status}: {error_text}")
-                        
+
         except Exception as e:
             logging.error(f"调用配置的AI模型失败: {e}")
-    
+
     # 如果配置模型失败，回退到原有模型
     logging.info("回退到原有AI模型")
-    return call_qwen_model(model_type, system_prompt, user_input)
+    content = call_qwen_model(model_type, system_prompt, user_input)
 
-async def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
+    if return_usage:
+        # 回退模型无法获取token使用量
+        return content, {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+    else:
+        return content
+
+async def analyze_user_intent_and_generate_sql(user_input, retry_count=3, user_id: int = 1):
+    """
+    分析用户意图并生成SQL查询
+
+    Args:
+        user_input: 用户输入
+        retry_count: 重试次数
+        user_id: 用户ID,用于获取用户选择的模型配置
+
+    Returns:
+        生成的SQL查询语句
+    """
     # 动态获取当前时间信息
     from datetime import datetime
     import pytz
-    
+
     # 获取中国时区的当前时间
     china_tz = pytz.timezone('Asia/Shanghai')
     current_time = datetime.now(china_tz)
     current_year = current_time.year
     current_month = current_time.month
     current_date = current_time.strftime('%Y-%m-%d')
-    
+
     # 从环境变量获取数据库表结构
     database_schema = os.getenv("DATABASE_SCHEMA", "")
-    
+
     system_prompt = (
         "Analyze the user input and generate the corresponding SQL query based on the existing database table clause. "
         f"CURRENT TIME CONTEXT: Today is {current_date}, current year is {current_year}, current month is {current_month}. "
@@ -248,7 +320,7 @@ async def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
 
     for attempt in range(retry_count):
         try:
-            ai_response = await call_configured_ai_model(system_prompt, user_input)
+            ai_response = await call_configured_ai_model(system_prompt, user_input, user_id=user_id)
 
             if ai_response:
                 sql_start = ai_response.find("```sql\n") + len("```sql\n")
@@ -268,15 +340,29 @@ async def analyze_user_intent_and_generate_sql(user_input, retry_count=3):
 
     # 如果所有尝试都失败，返回一个默认的SQL查询
     logging.error("多次尝试后仍未能生成SQL语句，返回默认查询")
-    if "车流" in user_input or "人流量" in user_input:
+    if "销售" in user_input or "sales" in user_input.lower():
+        return "SELECT sale_date, product_name, amount, quantity FROM sales ORDER BY sale_date DESC LIMIT 10"
+    elif "车流" in user_input or "人流量" in user_input:
         return "SELECT statistics_date, all_count, in_count, out_count FROM pl_mobile_people_flow_data ORDER BY statistics_date DESC LIMIT 10"
     elif "人口" in user_input:
         return "SELECT date_time, num FROM pl_pop_trend_of_end_year ORDER BY date_time DESC LIMIT 10"
     else:
-        return "SELECT * FROM pl_mobile_people_flow_data ORDER BY statistics_date DESC LIMIT 10"
+        # 默认返回sales表数据
+        return "SELECT sale_date, product_name, amount, quantity FROM sales ORDER BY sale_date DESC LIMIT 10"
 
 
-async def refine_data_with_ai(user_input, df):
+async def refine_data_with_ai(user_input, df, user_id: int = 1):
+    """
+    使用AI精炼数据,确定X轴和Y轴
+
+    Args:
+        user_input: 用户输入
+        df: 查询结果DataFrame
+        user_id: 用户ID,用于获取用户选择的模型配置
+
+    Returns:
+        精炼后的数据配置
+    """
     system_prompt = (
         "Based on the user's question and the query result, determine the appropriate columns for the X-axis and Y-axis, "
         "as well as the scale and unit for displaying the data. The column names, scale, and unit should be returned in JSON format using markdown.\n\n"
@@ -294,7 +380,7 @@ async def refine_data_with_ai(user_input, df):
         "```"
     )
 
-    ai_response = await call_configured_ai_model(system_prompt, user_input)
+    ai_response = await call_configured_ai_model(system_prompt, user_input, user_id=user_id)
     if ai_response:
         json_start = ai_response.find("```json\n") + len("```json\n")
         json_end = ai_response.find("\n```", json_start)
@@ -311,18 +397,29 @@ async def refine_data_with_ai(user_input, df):
         return None
 
 
-async def generate_insight_analysis(user_input, df):
+async def generate_insight_analysis(user_input, df, user_id: int = 1):
+    """
+    生成数据洞察分析
+
+    Args:
+        user_input: 用户输入
+        df: 查询结果DataFrame
+        user_id: 用户ID,用于获取用户选择的模型配置
+
+    Returns:
+        洞察分析文本
+    """
     # 动态获取当前时间信息
     from datetime import datetime
     import pytz
-    
+
     # 获取中国时区的当前时间
     china_tz = pytz.timezone('Asia/Shanghai')
     current_time = datetime.now(china_tz)
     current_date = current_time.strftime('%Y-%m-%d')
     current_year = current_time.year
     current_month = current_time.month
-    
+
     system_prompt = (
         "基于用户的问题和查询结果，生成深入的洞察分析。分析应该简洁明了，并提供从数据中得出的有意义的见解。\n\n"
         f"当前时间上下文：今天是{current_date}，当前年份是{current_year}年{current_month}月\n"
@@ -346,7 +443,7 @@ async def generate_insight_analysis(user_input, df):
         "请确保分析内容准确、有见地，并与用户的问题紧密相关。使用中文回答。"
     )
 
-    ai_response = await call_configured_ai_model(system_prompt, user_input)
+    ai_response = await call_configured_ai_model(system_prompt, user_input, user_id=user_id)
     if ai_response:
         # 直接返回AI响应，不再寻找特定格式标记
         # AI应该直接返回格式化的Markdown内容
@@ -356,7 +453,18 @@ async def generate_insight_analysis(user_input, df):
         return None
 
 
-async def determine_chart_type(user_input, json_data):
+async def determine_chart_type(user_input, json_data, user_id: int = 1):
+    """
+    确定图表类型
+
+    Args:
+        user_input: 用户输入
+        json_data: JSON格式的数据
+        user_id: 用户ID,用于获取用户选择的模型配置
+
+    Returns:
+        图表类型
+    """
     system_prompt = (
         "Based on the user's question and the provided data, determine the most appropriate chart type to visualize the data. "
         "The chart type should be returned as a string in markdown format.\n\n"
@@ -370,7 +478,7 @@ async def determine_chart_type(user_input, json_data):
         "```"
     )
 
-    ai_response = await call_configured_ai_model(system_prompt, user_input)
+    ai_response = await call_configured_ai_model(system_prompt, user_input, user_id=user_id)
     if ai_response:
         chart_start = ai_response.find("```chart\n") + len("```chart\n")
         chart_end = ai_response.find("\n```", chart_start)

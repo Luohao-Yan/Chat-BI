@@ -3,6 +3,12 @@ import 'vuetify/styles';
 import { aliases, mdi } from 'vuetify/iconsets/mdi';
 import { colors } from '@/styles/colors';
 
+// 从 localStorage 读取圆角设置
+const getRoundedSize = () => {
+  const saved = localStorage.getItem('roundedSize');
+  return saved || 'lg';
+};
+
 const lightTheme = {
   dark: false,
   colors: {
@@ -42,6 +48,29 @@ export default createVuetify({
     aliases,
     sets: {
       mdi,
+    },
+  },
+  defaults: {
+    VBtn: {
+      rounded: getRoundedSize(),
+    },
+    VCard: {
+      rounded: getRoundedSize(),
+    },
+    VTextField: {
+      rounded: getRoundedSize(),
+    },
+    VTextarea: {
+      rounded: getRoundedSize(),
+    },
+    VSheet: {
+      rounded: getRoundedSize(),
+    },
+    VChip: {
+      rounded: getRoundedSize(),
+    },
+    VAlert: {
+      rounded: getRoundedSize(),
     },
   },
 });

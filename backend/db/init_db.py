@@ -1,99 +1,83 @@
-import os
 import logging
-import json
-import inspect
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.sql import text
-from models.generate_chart_models import Base
-from db.session import engine, async_session  # 导入engine和async_session
-from models import generate_chart_models
-
-
-def get_model_classes(module):
-    """获取模块中所有的SQLAlchemy模型类"""
-    return {
-        name: cls
-        for name, cls in inspect.getmembers(module, inspect.isclass)
-        if issubclass(cls, Base) and cls.__module__ == module.__name__
-    }
+from sqlalchemy import inspect
+from models.base import Base
+from models import SysUser, SysAiModelConfig, SysConversation, SysConversationMessage
+from db.session import engine, async_session
 
 
 async def init_db():
+    """初始化数据库，创建所有表（如果不存在）"""
     async with engine.begin() as conn:
         try:
-            # 创建所有表
-            logging.info("正在创建所有表...")
+            # 检查是否已有表存在
+            def check_tables(connection):
+                inspector = inspect(connection)
+                existing_tables = inspector.get_table_names()
+                return existing_tables
+
+            existing_tables = await conn.run_sync(check_tables)
+
+            if existing_tables:
+                logging.info(f"数据库已初始化，现有 {len(existing_tables)} 个表")
+            else:
+                logging.info("首次初始化数据库，正在创建表...")
+
+            # create_all 会自动检查表是否存在（checkfirst=True 是默认值）
+            # 只创建不存在的表，不会重复创建
             await conn.run_sync(Base.metadata.create_all)
-            logging.info("所有表创建成功")
+
+            if not existing_tables:
+                logging.info("数据库表创建完成")
+
         except SQLAlchemyError as e:
             logging.error(f"数据库操作错误: {e}")
+            raise
 
 
-async def insert_mock_data():
-    # 获取当前文件的目录
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 构建JSON文件的绝对路径
-    json_files = [
-        os.path.join(current_dir, "..", "mock", "人口活力.json"),
-        os.path.join(current_dir, "..", "mock", "人口流动数据.json"),
-    ]
-
+async def insert_default_data():
+    """插入默认数据（如默认管理员账户）"""
     try:
-        # 使用独立的会话进行数据插入
         async with async_session() as session:
             try:
-                # 获取所有模型类
-                model_classes = get_model_classes(generate_chart_models)
+                # 检查是否已存在管理员账户
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(SysUser).where(SysUser.username == 'admin')
+                )
+                existing_admin = result.scalar_one_or_none()
 
-                for json_file in json_files:
-                    # 从JSON文件读取mock数据
-                    logging.info(f"正在读取{json_file}中的mock数据...")
-                    with open(json_file, "r", encoding="utf-8") as file:
-                        data_list = json.load(file)
+                if not existing_admin:
+                    # 创建默认管理员账户
+                    from passlib.context import CryptContext
+                    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-                    # 插入mock数据
-                    logging.info(f"正在插入{json_file}中的mock数据...")
-                    for data in data_list:
-                        table_name = data.pop("table_name", None)
-                        if table_name:
-                            model = model_classes.get(table_name)
-                            if model:
-                                # logging.info(f"正在插入数据到表 {table_name}: {data}")
-                                session.add(model(**data))
-                            # else:
-                            # logging.warning(f"未找到表 {table_name} 对应的模型类")
-                        else:
-                            logging.warning("数据中缺少 table_name 字段")
-
-                # 提交事务
-                await session.commit()
-                logging.info("所有mock数据插入成功")
-
-            except SQLAlchemyError as e:
-                logging.error(f"插入mock数据错误: {e}")
-                await session.rollback()
-                raise
-            except Exception as e:
-                logging.error(f"处理mock数据时发生错误: {e}")
-                await session.rollback()
-                raise
-
-        # 使用新的会话进行数据验证
-        async with async_session() as session:
-            try:
-                # 手动查询数据库以验证数据是否插入成功
-                for table_name, model in model_classes.items():
-                    result = await session.execute(
-                        text(f"SELECT * FROM {model.__tablename__} LIMIT 1")
+                    admin_user = SysUser(
+                        username='admin',
+                        email='admin@chatbi.com',
+                        password_hash=pwd_context.hash('admin123'),
+                        full_name='系统管理员',
+                        is_active=True,
+                        is_superuser=True
                     )
-                    rows = result.fetchall()
-                    logging.info(f"表 {table_name} 中的数据: {rows}")
+                    session.add(admin_user)
+                    await session.commit()
+                    logging.info("默认管理员账户创建成功: username=admin, password=admin123")
+                else:
+                    logging.info("管理员账户已存在，跳过创建")
+
             except SQLAlchemyError as e:
-                logging.error(f"验证数据时发生错误: {e}")
+                logging.error(f"插入默认数据错误: {e}")
+                await session.rollback()
+                raise
             except Exception as e:
-                logging.error(f"验证数据时发生未知错误: {e}")
+                logging.error(f"处理默认数据时发生错误: {e}")
+                await session.rollback()
+                # 如果是密码加密库不存在的错误，提供友好提示
+                if "passlib" in str(e):
+                    logging.warning("passlib库未安装，跳过创建默认管理员账户")
+                else:
+                    raise
 
     except Exception as e:
-        logging.error(f"插入mock数据过程中发生错误: {e}")
-        # 不重新抛出异常，让应用继续启动
+        logging.error(f"插入默认数据过程中发生错误: {e}")

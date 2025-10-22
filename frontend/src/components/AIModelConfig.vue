@@ -1,7 +1,7 @@
 <template>
-  <v-container>
+  <v-container fluid class="ai-model-config-container">
     <v-row justify="center">
-      <v-col cols="12" md="8">
+      <v-col cols="12" md="10" lg="8">
         <v-card>
           <v-card-title class="text-h5">
             <v-icon left>mdi-robot</v-icon>
@@ -13,14 +13,34 @@
 
           <v-card-text>
             <v-form ref="form" v-model="valid">
+              <v-text-field
+                v-model="config.configName"
+                label="配置名称"
+                prepend-icon="mdi-tag"
+                :rules="nameRules"
+                required
+                class="mb-4"
+              ></v-text-field>
+
               <v-select
-                v-model="selectedModel"
-                :items="modelOptions"
+                v-model="config.modelType"
+                :items="modelTypeOptions"
+                item-title="name"
+                item-value="value"
+                label="模型类型"
+                prepend-icon="mdi-format-list-bulleted-type"
+                required
+                class="mb-4"
+              ></v-select>
+
+              <v-select
+                v-model="selectedProvider"
+                :items="providerOptions"
                 item-title="name"
                 item-value="value"
                 label="选择模型提供商"
                 prepend-icon="mdi-cloud"
-                @update:model-value="onModelChange"
+                @update:model-value="onProviderChange"
                 required
                 class="mb-4"
               ></v-select>
@@ -33,13 +53,12 @@
                 :append-inner-icon="showApiKey ? 'mdi-eye' : 'mdi-eye-off'"
                 @click:append-inner="showApiKey = !showApiKey"
                 :rules="apiKeyRules"
-                required
                 class="mb-4"
               ></v-text-field>
 
               <v-text-field
-                v-model="config.baseUrl"
-                label="API 基础地址"
+                v-model="config.apiUrl"
+                label="API 地址"
                 prepend-icon="mdi-web"
                 :rules="urlRules"
                 required
@@ -47,7 +66,7 @@
               ></v-text-field>
 
               <v-text-field
-                v-model="config.model"
+                v-model="config.modelName"
                 label="模型名称"
                 prepend-icon="mdi-brain"
                 :rules="modelRules"
@@ -56,7 +75,7 @@
               ></v-text-field>
 
               <v-slider
-                v-model="config.temperature"
+                v-model="temperature"
                 label="Temperature"
                 min="0"
                 max="2"
@@ -64,18 +83,40 @@
                 thumb-label
                 prepend-icon="mdi-thermometer"
                 class="mb-4"
+                @update:model-value="config.temperature = temperature.toFixed(1)"
               ></v-slider>
 
-              <v-slider
-                v-model="config.maxTokens"
+              <v-text-field
+                v-model.number="config.maxTokens"
                 label="Max Tokens"
+                type="number"
                 min="100"
-                max="4000"
-                step="100"
-                thumb-label
+                max="8000"
                 prepend-icon="mdi-text-long"
                 class="mb-4"
-              ></v-slider>
+              ></v-text-field>
+
+              <v-textarea
+                v-model="config.description"
+                label="配置描述"
+                prepend-icon="mdi-text"
+                rows="2"
+                class="mb-4"
+              ></v-textarea>
+
+              <v-switch
+                v-model="config.isDefault"
+                label="设为默认配置"
+                color="primary"
+                class="mb-2"
+              ></v-switch>
+
+              <v-switch
+                v-model="config.isActive"
+                label="启用此配置"
+                color="primary"
+                class="mb-4"
+              ></v-switch>
 
               <v-card class="mb-4" outlined>
                 <v-card-title class="text-subtitle-1">
@@ -110,6 +151,9 @@
               >
                 <div class="font-weight-bold">{{ testResult.success ? '✓ 连接成功' : '✗ 连接失败' }}</div>
                 <div class="text-caption">{{ testResult.message }}</div>
+                <div v-if="testResult.response" class="text-caption mt-2">
+                  <strong>响应:</strong> {{ testResult.response }}
+                </div>
               </v-alert>
             </v-form>
           </v-card-text>
@@ -129,9 +173,57 @@
               :loading="saving"
               @click="saveConfig"
             >
+              <v-icon left>mdi-content-save</v-icon>
               保存配置
             </v-btn>
           </v-card-actions>
+        </v-card>
+
+        <!-- 已保存的配置列表 -->
+        <v-card class="mt-4" v-if="savedConfigs.length > 0">
+          <v-card-title class="text-h6">
+            <v-icon left>mdi-history</v-icon>
+            已保存的配置
+          </v-card-title>
+          <v-list>
+            <v-list-item
+              v-for="item in savedConfigs"
+              :key="item.id"
+              :class="{ 'bg-primary-lighten-5': item.isDefault }"
+            >
+              <template v-slot:prepend>
+                <v-icon :color="item.isActive ? 'success' : 'grey'">
+                  {{ item.isDefault ? 'mdi-star' : 'mdi-cog' }}
+                </v-icon>
+              </template>
+
+              <v-list-item-title>
+                {{ item.configName }}
+                <v-chip v-if="item.isDefault" size="x-small" color="primary" class="ml-2">默认</v-chip>
+                <v-chip v-if="!item.isActive" size="x-small" color="grey" class="ml-2">已禁用</v-chip>
+              </v-list-item-title>
+              <v-list-item-subtitle>
+                {{ item.modelName }} | {{ item.modelType }}
+              </v-list-item-subtitle>
+
+              <template v-slot:append>
+                <v-btn
+                  icon="mdi-pencil"
+                  size="small"
+                  variant="text"
+                  @click="editConfig(item)"
+                ></v-btn>
+                <v-btn
+                  v-if="item.id"
+                  icon="mdi-delete"
+                  size="small"
+                  variant="text"
+                  color="error"
+                  @click="deleteConfig(item.id)"
+                ></v-btn>
+              </template>
+            </v-list-item>
+          </v-list>
         </v-card>
       </v-col>
     </v-row>
@@ -159,17 +251,25 @@
 import { ref, reactive, onMounted } from 'vue'
 import axios from 'axios'
 
-interface ModelConfig {
+interface AIModelConfig {
+  id?: number
+  userId: number
+  configName: string
+  modelName: string
+  modelType: string
+  apiUrl: string
   apiKey: string
-  baseUrl: string
-  model: string
-  temperature: number
-  maxTokens: number
+  temperature: string
+  maxTokens: number | null
+  description: string
+  isDefault: boolean
+  isActive: boolean
 }
 
 interface TestResult {
   success: boolean
   message: string
+  response?: string
 }
 
 interface SnackbarState {
@@ -180,19 +280,31 @@ interface SnackbarState {
 
 const valid = ref(false)
 const showApiKey = ref(false)
-const selectedModel = ref('')
+const selectedProvider = ref('')
 const testing = ref(false)
 const saving = ref(false)
 const testMessage = ref('你好，请介绍一下你自己。')
+const currentEditId = ref<number | null>(null)
+const temperature = ref(0.7)
 
-const config = reactive<ModelConfig>({
+// 暂时使用默认用户ID (admin用户)
+const currentUserId = ref(1)
+
+const config = reactive<Omit<AIModelConfig, 'id'>>({
+  userId: currentUserId.value,
+  configName: '',
+  modelName: '',
+  modelType: 'chat',
+  apiUrl: '',
   apiKey: '',
-  baseUrl: '',
-  model: '',
-  temperature: 0.7,
-  maxTokens: 2000
+  temperature: '0.7',
+  maxTokens: 2000,
+  description: '',
+  isDefault: false,
+  isActive: true
 })
 
+const savedConfigs = ref<AIModelConfig[]>([])
 const testResult = ref<TestResult | null>(null)
 
 const snackbar = reactive<SnackbarState>({
@@ -201,36 +313,54 @@ const snackbar = reactive<SnackbarState>({
   color: 'success'
 })
 
-const modelOptions = [
+const modelTypeOptions = [
+  { name: '对话模型 (Chat)', value: 'chat' },
+  { name: '生成模型 (Generate)', value: 'generate' },
+  { name: '嵌入模型 (Embedding)', value: 'embedding' }
+]
+
+const providerOptions = [
   {
     name: '硅基流动 (SiliconFlow)',
     value: 'siliconflow',
     defaultConfig: {
-      baseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-      model: 'Qwen/Qwen2.5-72B-Instruct'
+      apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+      modelName: 'Qwen/Qwen2.5-72B-Instruct'
     }
   },
   {
     name: 'OpenAI GPT',
     value: 'openai',
     defaultConfig: {
-      baseUrl: 'https://api.openai.com/v1/chat/completions',
-      model: 'gpt-3.5-turbo'
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      modelName: 'gpt-3.5-turbo'
+    }
+  },
+  {
+    name: 'Deepseek',
+    value: 'deepseek',
+    defaultConfig: {
+      apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+      modelName: 'deepseek-chat'
     }
   },
   {
     name: '自定义',
     value: 'custom',
     defaultConfig: {
-      baseUrl: '',
-      model: ''
+      apiUrl: '',
+      modelName: ''
     }
   }
 ]
 
+const nameRules = [
+  (v: string) => !!v || '配置名称是必填项',
+  (v: string) => v.length >= 2 || '配置名称至少2个字符'
+]
+
 const apiKeyRules = [
-  (v: string) => !!v || 'API Key 是必填项',
-  (v: string) => v.length >= 10 || 'API Key 长度至少10位'
+  (v: string) => v.length === 0 || v.length >= 10 || 'API Key 长度至少10位'
 ]
 
 const urlRules = [
@@ -242,11 +372,11 @@ const modelRules = [
   (v: string) => !!v || '模型名称是必填项'
 ]
 
-const onModelChange = (value: string) => {
-  const option = modelOptions.find(opt => opt.value === value)
+const onProviderChange = (value: string) => {
+  const option = providerOptions.find(opt => opt.value === value)
   if (option && option.defaultConfig) {
-    config.baseUrl = option.defaultConfig.baseUrl
-    config.model = option.defaultConfig.model
+    config.apiUrl = option.defaultConfig.apiUrl
+    config.modelName = option.defaultConfig.modelName
   }
   testResult.value = null
 }
@@ -261,18 +391,22 @@ const testConnection = async () => {
   testResult.value = null
 
   try {
-    const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/ai-config/test`, {
-      config: config,
-      message: testMessage.value
-    })
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_BASE_URL}/api/ai-model-configs/test`,
+      null,
+      {
+        params: {
+          api_url: config.apiUrl,
+          api_key: config.apiKey,
+          model_name: config.modelName,
+          temperature: parseFloat(config.temperature),
+          max_tokens: config.maxTokens || 2000,
+          test_message: testMessage.value
+        }
+      }
+    )
 
-    // 直接使用后端返回的结果
-    testResult.value = {
-      success: response.data.success,
-      message: response.data.success 
-        ? `响应时间: ${response.data.responseTime}ms` 
-        : response.data.message
-    }
+    testResult.value = response.data
   } catch (error: any) {
     testResult.value = {
       success: false,
@@ -287,41 +421,120 @@ const saveConfig = async () => {
   saving.value = true
 
   try {
-    await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/ai-config/save`, {
-      provider: selectedModel.value,
-      config: config
-    })
+    const payload = {
+      ...config,
+      temperature: config.temperature
+    }
 
-    showSnackbar('配置保存成功', 'success')
+    if (currentEditId.value) {
+      // 更新现有配置
+      await axios.put(
+        `${import.meta.env.VITE_API_BASE_URL}/api/ai-model-configs/${currentEditId.value}`,
+        payload
+      )
+      showSnackbar('配置更新成功', 'success')
+    } else {
+      // 创建新配置
+      await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/api/ai-model-configs`,
+        payload
+      )
+      showSnackbar('配置保存成功', 'success')
+    }
+
+    resetForm()
+    await loadConfigs()
   } catch (error: any) {
-    showSnackbar('保存失败: ' + (error.response?.data?.detail || error.message), 'error')
+    console.error('保存配置失败:', error)
+    const errorDetail = error.response?.data?.detail
+    let errorMsg = '保存失败'
+    if (Array.isArray(errorDetail)) {
+      // Pydantic 验证错误
+      errorMsg += ': ' + errorDetail.map((e: any) => `${e.loc.join('.')}: ${e.msg}`).join('; ')
+    } else if (typeof errorDetail === 'string') {
+      errorMsg += ': ' + errorDetail
+    } else if (error.message) {
+      errorMsg += ': ' + error.message
+    }
+    showSnackbar(errorMsg, 'error')
   } finally {
     saving.value = false
   }
 }
 
-const loadConfig = async () => {
+const loadConfigs = async () => {
   try {
-    const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/ai-config`)
-    
-    if (response.data) {
-      selectedModel.value = response.data.provider || ''
-      Object.assign(config, response.data.config || {})
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/api/ai-model-configs`,
+      {
+        params: {
+          user_id: currentUserId.value
+        }
+      }
+    )
+
+    if (response.data && response.data.items) {
+      savedConfigs.value = response.data.items
     }
   } catch (error) {
-    console.error('加载配置失败:', error)
+    console.error('加载配置列表失败:', error)
+  }
+}
+
+const editConfig = (item: AIModelConfig) => {
+  currentEditId.value = item.id || null
+  Object.assign(config, {
+    userId: item.userId,
+    configName: item.configName,
+    modelName: item.modelName,
+    modelType: item.modelType,
+    apiUrl: item.apiUrl,
+    apiKey: item.apiKey || '',
+    temperature: item.temperature,
+    maxTokens: item.maxTokens,
+    description: item.description || '',
+    isDefault: item.isDefault,
+    isActive: item.isActive
+  })
+  temperature.value = parseFloat(item.temperature)
+  testResult.value = null
+
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  showSnackbar('正在编辑配置', 'info')
+}
+
+const deleteConfig = async (id: number) => {
+  if (!confirm('确定要删除此配置吗？')) {
+    return
+  }
+
+  try {
+    await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/api/ai-model-configs/${id}`)
+    showSnackbar('配置删除成功', 'success')
+    await loadConfigs()
+  } catch (error: any) {
+    showSnackbar('删除失败: ' + (error.response?.data?.detail || error.message), 'error')
   }
 }
 
 const resetForm = () => {
-  selectedModel.value = ''
+  currentEditId.value = null
+  selectedProvider.value = ''
   Object.assign(config, {
+    userId: currentUserId.value,
+    configName: '',
+    modelName: '',
+    modelType: 'chat',
+    apiUrl: '',
     apiKey: '',
-    baseUrl: '',
-    model: '',
-    temperature: 0.7,
-    maxTokens: 2000
+    temperature: '0.7',
+    maxTokens: 2000,
+    description: '',
+    isDefault: false,
+    isActive: true
   })
+  temperature.value = 0.7
   testResult.value = null
 }
 
@@ -332,12 +545,25 @@ const showSnackbar = (message: string, color: string = 'success') => {
 }
 
 onMounted(() => {
-  loadConfig()
+  loadConfigs()
 })
 </script>
 
 <style scoped>
+.ai-model-config-container {
+  padding: 24px 16px;
+  padding-bottom: 48px; /* 额外底部空间 */
+}
+
 .v-card {
-  margin: 20px 0;
+  margin-bottom: 24px;
+}
+
+.v-card:last-child {
+  margin-bottom: 0;
+}
+
+.bg-primary-lighten-5 {
+  background-color: rgba(var(--v-theme-primary), 0.05);
 }
 </style>

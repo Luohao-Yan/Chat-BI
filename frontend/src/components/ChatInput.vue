@@ -1,12 +1,22 @@
 <template>
-  <div
-    class="chat-input-wrapper"
-    :class="{ 'focused': isFocused }"
-    @focusin="isFocused = true"
-    @focusout="isFocused = false">
+  <div class="chat-input-container">
+    <!-- 数据集标签区域 -->
+    <DatasetChips
+      v-if="selectedDatasets.length > 0"
+      :datasets="selectedDatasets"
+      @remove="handleRemoveDataset"
+      @preview="handlePreviewDataset"
+    />
 
-    <!-- 输入区域 -->
-    <div class="input-section">
+    <!-- 输入框 -->
+    <div
+      class="chat-input-wrapper"
+      :class="{ 'focused': isFocused, 'has-datasets': selectedDatasets.length > 0 }"
+      @focusin="isFocused = true"
+      @focusout="isFocused = false">
+
+      <!-- 输入区域 -->
+      <div class="input-section">
       <textarea
         ref="textareaRef"
         v-model="localValue"
@@ -26,9 +36,15 @@
         icon
         size="small"
         variant="plain"
-        class="action-btn">
+        class="action-btn"
+        @click="emit('uploadClick')">
         <v-icon>mdi-paperclip</v-icon>
       </v-btn>
+
+      <ToolMenu
+        :position="toolMenuPosition"
+        @select="handleToolSelect"
+      />
 
       <div class="spacer"></div>
 
@@ -44,16 +60,28 @@
         size="small"
         color="primary"
         :disabled="disabled || !localValue"
-        class="send-btn"
+        class="send-btn circular-btn"
+        rounded="xl"
         @click="handleSend">
         <v-icon>mdi-arrow-up</v-icon>
       </v-btn>
+    </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import ToolMenu from './ToolMenu.vue'
+import DatasetChips from './DatasetChips.vue'
+
+interface Dataset {
+  id: string
+  name: string
+  logical_name?: string
+  row_count: number
+  column_count: number
+}
 
 interface Props {
   modelValue: string
@@ -61,18 +89,26 @@ interface Props {
   rows?: number
   placeholder?: string
   maxRows?: number
+  toolMenuPosition?: 'top' | 'bottom'
+  selectedDatasets?: Dataset[]
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
   (e: 'send'): void
+  (e: 'toolSelect', action: string): void
+  (e: 'uploadClick'): void
+  (e: 'removeDataset', datasetId: string): void
+  (e: 'previewDataset', dataset: Dataset): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   rows: 1,
   placeholder: '请输入问题',
-  maxRows: 6
+  maxRows: 6,
+  toolMenuPosition: 'bottom',
+  selectedDatasets: () => []
 })
 
 const emit = defineEmits<Emits>()
@@ -115,6 +151,18 @@ const handleNewLine = () => {
   })
 }
 
+const handleToolSelect = (action: string) => {
+  emit('toolSelect', action)
+}
+
+const handleRemoveDataset = (datasetId: string) => {
+  emit('removeDataset', datasetId)
+}
+
+const handlePreviewDataset = (dataset: Dataset) => {
+  emit('previewDataset', dataset)
+}
+
 const autoResize = () => {
   const textarea = textareaRef.value
   if (!textarea) return
@@ -141,6 +189,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.chat-input-container {
+  width: 100%;
+}
+
 .chat-input-wrapper {
   position: relative;
   display: flex;
@@ -151,6 +203,13 @@ onMounted(() => {
   border-radius: 1.5rem;
   opacity: 0.5;
   transition: all 0.2s;
+}
+
+/* 有数据集时,移除顶部边框,顶部圆角改为0 */
+.chat-input-wrapper.has-datasets {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .chat-input-wrapper.focused {
@@ -207,5 +266,10 @@ onMounted(() => {
 
 .send-btn {
   flex-shrink: 0;
+}
+
+/* 强制发送按钮保持圆形，不受全局圆角设置影响 */
+.circular-btn {
+  border-radius: 50% !important;
 }
 </style>

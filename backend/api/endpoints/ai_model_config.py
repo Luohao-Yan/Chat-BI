@@ -1,144 +1,318 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
-import json
-import os
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete
+from typing import List, Optional
 import logging
 import time
 import aiohttp
 import asyncio
-from pathlib import Path
+
+from models.sys_ai_model_config import SysAiModelConfig
+from schemas.ai_model_config import (
+    AIModelConfigCreate,
+    AIModelConfigUpdate,
+    AIModelConfigResponse,
+    AIModelConfigList
+)
+from db.session import async_session
 
 router = APIRouter()
 
-class ModelConfig(BaseModel):
-    apiKey: str = Field(..., description="API密钥")
-    baseUrl: str = Field(..., description="API基础地址") 
-    model: str = Field(..., description="模型名称")
-    temperature: float = Field(default=0.7, ge=0, le=2, description="温度参数")
-    maxTokens: int = Field(default=2000, ge=100, le=4000, description="最大token数")
 
-class SaveConfigRequest(BaseModel):
-    provider: str = Field(..., description="模型提供商")
-    config: ModelConfig = Field(..., description="模型配置")
+# 数据库依赖
+async def get_db():
+    async with async_session() as session:
+        yield session
 
-class TestConfigRequest(BaseModel):
-    config: ModelConfig = Field(..., description="待测试的配置")
-    message: str = Field(..., description="测试消息")
 
-class AIConfigResponse(BaseModel):
-    provider: Optional[str] = None
-    config: Optional[ModelConfig] = None
-
-# 配置文件路径
-CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
-CONFIG_FILE = CONFIG_DIR / "ai_model_config.json"
-
-def ensure_config_dir():
-    """确保配置目录存在"""
-    CONFIG_DIR.mkdir(exist_ok=True)
-
-def load_config() -> Dict[str, Any]:
-    """加载配置"""
-    ensure_config_dir()
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logging.error(f"加载配置失败: {e}")
-    return {}
-
-def save_config(config_data: Dict[str, Any]):
-    """保存配置"""
-    ensure_config_dir()
+@router.post("/ai-model-configs", response_model=AIModelConfigResponse, status_code=201)
+async def create_ai_model_config(
+    config: AIModelConfigCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """创建AI模型配置"""
     try:
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config_data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logging.error(f"保存配置失败: {e}")
-        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
+        # 如果设置为默认配置，先取消同类型的其他默认配置
+        if config.is_default:
+            await db.execute(
+                update(SysAiModelConfig)
+                .where(
+                    SysAiModelConfig.user_id == config.user_id,
+                    SysAiModelConfig.model_type == config.model_type  # 只取消同类型的默认配置
+                )
+                .values(is_default=False)
+            )
 
-@router.get("/ai-config", response_model=AIConfigResponse)
-async def get_ai_config():
-    """获取当前AI模型配置"""
+        # 创建新配置
+        db_config = SysAiModelConfig(**config.model_dump())
+        db.add(db_config)
+        await db.commit()
+        await db.refresh(db_config)
+
+        logging.info(f"AI模型配置创建成功: id={db_config.id}, user_id={config.user_id}")
+        return db_config
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"创建AI模型配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"创建配置失败: {str(e)}")
+
+
+@router.get("/ai-model-configs", response_model=AIModelConfigList)
+async def get_ai_model_configs(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取用户的所有AI模型配置"""
     try:
-        config_data = load_config()
-        return AIConfigResponse(**config_data)
-    except Exception as e:
-        logging.error(f"获取配置失败: {e}")
-        return AIConfigResponse()
+        # 查询总数
+        count_result = await db.execute(
+            select(SysAiModelConfig).where(SysAiModelConfig.user_id == user_id)
+        )
+        total = len(count_result.all())
 
-@router.post("/ai-config/save")
-async def save_ai_config(request: SaveConfigRequest):
-    """保存AI模型配置"""
+        # 查询配置列表
+        result = await db.execute(
+            select(SysAiModelConfig)
+            .where(SysAiModelConfig.user_id == user_id)
+            .offset(skip)
+            .limit(limit)
+            .order_by(SysAiModelConfig.created_at.desc())
+        )
+        configs = result.scalars().all()
+
+        return AIModelConfigList(total=total, items=configs)
+    except Exception as e:
+        logging.error(f"获取AI模型配置列表失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取配置列表失败: {str(e)}")
+
+
+@router.get("/ai-model-configs/{config_id}", response_model=AIModelConfigResponse)
+async def get_ai_model_config(
+    config_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取指定的AI模型配置"""
     try:
-        config_data = {
-            "provider": request.provider,
-            "config": request.config.dict()
-        }
-        save_config(config_data)
-        logging.info(f"AI模型配置已保存: provider={request.provider}")
-        return {"message": "配置保存成功"}
-    except Exception as e:
-        logging.error(f"保存配置失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        result = await db.execute(
+            select(SysAiModelConfig).where(SysAiModelConfig.id == config_id)
+        )
+        config = result.scalar_one_or_none()
 
-@router.post("/ai-config/test")
-async def test_ai_config(request: TestConfigRequest):
-    """测试AI模型配置"""
+        if not config:
+            raise HTTPException(status_code=404, detail="配置不存在")
+
+        return config
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"获取AI模型配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}")
+
+
+@router.get("/ai-model-configs/default/{user_id}", response_model=AIModelConfigResponse)
+async def get_default_ai_model_config(
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取用户的默认AI模型配置"""
+    try:
+        result = await db.execute(
+            select(SysAiModelConfig)
+            .where(
+                SysAiModelConfig.user_id == user_id,
+                SysAiModelConfig.is_default == True,
+                SysAiModelConfig.is_active == True
+            )
+        )
+        config = result.scalar_one_or_none()
+
+        if not config:
+            raise HTTPException(status_code=404, detail="未找到默认配置")
+
+        return config
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"获取默认AI模型配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取默认配置失败: {str(e)}")
+
+
+@router.put("/ai-model-configs/{config_id}", response_model=AIModelConfigResponse)
+async def update_ai_model_config(
+    config_id: int,
+    config_update: AIModelConfigUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """更新AI模型配置"""
+    try:
+        # 查询配置是否存在
+        result = await db.execute(
+            select(SysAiModelConfig).where(SysAiModelConfig.id == config_id)
+        )
+        db_config = result.scalar_one_or_none()
+
+        if not db_config:
+            raise HTTPException(status_code=404, detail="配置不存在")
+
+        # 如果设置为默认配置，先取消同类型的其他默认配置
+        if config_update.is_default:
+            await db.execute(
+                update(SysAiModelConfig)
+                .where(
+                    SysAiModelConfig.user_id == db_config.user_id,
+                    SysAiModelConfig.model_type == db_config.model_type,  # 只取消同类型的默认配置
+                    SysAiModelConfig.id != config_id
+                )
+                .values(is_default=False)
+            )
+
+        # 更新配置
+        update_data = config_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_config, key, value)
+
+        await db.commit()
+        await db.refresh(db_config)
+
+        logging.info(f"AI模型配置更新成功: id={config_id}")
+        return db_config
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"更新AI模型配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
+
+
+@router.delete("/ai-model-configs/{config_id}")
+async def delete_ai_model_config(
+    config_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """删除AI模型配置"""
+    try:
+        result = await db.execute(
+            select(SysAiModelConfig).where(SysAiModelConfig.id == config_id)
+        )
+        config = result.scalar_one_or_none()
+
+        if not config:
+            raise HTTPException(status_code=404, detail="配置不存在")
+
+        await db.execute(
+            delete(SysAiModelConfig).where(SysAiModelConfig.id == config_id)
+        )
+        await db.commit()
+
+        logging.info(f"AI模型配置删除成功: id={config_id}")
+        return {"message": "配置删除成功"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"删除AI模型配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除配置失败: {str(e)}")
+
+
+@router.post("/ai-model-configs/test")
+async def test_ai_model_config(
+    api_url: str,
+    api_key: str,
+    model_name: str,
+    model_type: str = "chat",
+    temperature: float = 0.7,
+    max_tokens: int = 2000,
+    test_message: str = "Hello, this is a test message."
+):
+    """测试AI模型配置是否可用"""
     start_time = time.time()
-    
+
     try:
         # 构建请求头
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {request.config.apiKey}"
+            "Authorization": f"Bearer {api_key}"
         }
-        
-        # 构建请求体
-        data = {
-            "model": request.config.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": request.message
-                }
-            ],
-            "temperature": request.config.temperature,
-            "max_tokens": request.config.maxTokens
-        }
-        
+
+        # 根据模型类型构建不同的请求体
+        if model_type == "embedding":
+            # Embedding 模型测试 (按照硅基流动标准格式)
+            data = {
+                "model": model_name,
+                "input": test_message
+            }
+        else:
+            # Chat/Generate 模型测试
+            data = {
+                "model": model_name,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": test_message
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+
         # 发送异步HTTP请求
         timeout = aiohttp.ClientTimeout(total=30)  # 30秒超时
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(request.config.baseUrl, json=data, headers=headers) as response:
+            async with session.post(api_url, json=data, headers=headers) as response:
                 if response.status == 200:
                     result = await response.json()
                     end_time = time.time()
                     response_time = int((end_time - start_time) * 1000)
-                    
-                    # 检查响应格式
-                    if 'choices' in result and len(result['choices']) > 0:
-                        return {
-                            "success": True,
-                            "responseTime": response_time,
-                            "message": "连接测试成功",
-                            "response": result['choices'][0]['message']['content'][:100] + "..." if len(result['choices'][0]['message']['content']) > 100 else result['choices'][0]['message']['content']
-                        }
+
+                    # 根据模型类型检查响应格式
+                    if model_type == "embedding":
+                        # 检查 embedding 响应格式
+                        if 'data' in result and len(result['data']) > 0:
+                            embedding = result['data'][0].get('embedding', [])
+                            if embedding and len(embedding) > 0:
+                                return {
+                                    "success": True,
+                                    "responseTime": response_time,
+                                    "message": "Embedding 模型连接测试成功",
+                                    "response": f"生成了 {len(embedding)} 维的向量表示"
+                                }
+                            else:
+                                return {
+                                    "success": False,
+                                    "message": "Embedding 响应格式异常：未返回向量数据",
+                                    "details": str(result)
+                                }
+                        else:
+                            return {
+                                "success": False,
+                                "message": "Embedding 响应格式异常：缺少 data 字段",
+                                "details": str(result)
+                            }
                     else:
-                        return {
-                            "success": False,
-                            "message": "响应格式异常",
-                            "details": str(result)
-                        }
+                        # 检查 chat/generate 响应格式
+                        if 'choices' in result and len(result['choices']) > 0:
+                            content = result['choices'][0]['message']['content']
+                            return {
+                                "success": True,
+                                "responseTime": response_time,
+                                "message": "连接测试成功",
+                                "response": content[:100] + "..." if len(content) > 100 else content
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "message": "响应格式异常",
+                                "details": str(result)
+                            }
                 else:
                     error_text = await response.text()
                     return {
                         "success": False,
                         "message": f"HTTP {response.status}: {error_text}"
                     }
-                    
+
     except asyncio.TimeoutError:
         return {
             "success": False,
@@ -155,57 +329,3 @@ async def test_ai_config(request: TestConfigRequest):
             "success": False,
             "message": f"测试失败: {str(e)}"
         }
-
-async def get_current_ai_config() -> Optional[Dict[str, Any]]:
-    """获取当前生效的AI配置（供其他模块使用）"""
-    try:
-        config_data = load_config()
-        if config_data and 'config' in config_data:
-            return config_data['config']
-        return None
-    except Exception as e:
-        logging.error(f"获取当前AI配置失败: {e}")
-        return None
-
-async def call_ai_model(message: str, config: Optional[Dict[str, Any]] = None) -> Optional[str]:
-    """调用AI模型（供其他模块使用）"""
-    if not config:
-        config = await get_current_ai_config()
-        
-    if not config:
-        logging.error("没有可用的AI配置")
-        return None
-        
-    try:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config['apiKey']}"
-        }
-        
-        data = {
-            "model": config['model'],
-            "messages": [
-                {
-                    "role": "user",
-                    "content": message
-                }
-            ],
-            "temperature": config.get('temperature', 0.7),
-            "max_tokens": config.get('maxTokens', 2000)
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(config['baseUrl'], json=data, headers=headers) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    if 'choices' in result and len(result['choices']) > 0:
-                        return result['choices'][0]['message']['content']
-                else:
-                    error_text = await response.text()
-                    logging.error(f"AI调用失败: HTTP {response.status}: {error_text}")
-                    
-    except Exception as e:
-        logging.error(f"调用AI模型失败: {e}")
-        
-    return None

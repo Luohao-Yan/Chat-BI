@@ -7,6 +7,10 @@ import '@mdi/font/css/materialdesignicons.css'; // 导入 mdi 图标库
 import 'vuetify/styles'; // 导入 Vuetify 样式
 import './main.css'; // 导入 Tailwind CSS
 
+// 引入 vue-files-preview
+import VueFilesPreview from 'vue-files-preview'
+import 'vue-files-preview/lib/style.css'
+
 // 引入 ECharts 所需模块
 import * as echarts from 'echarts/core';
 import {
@@ -42,7 +46,8 @@ const pinia = createPinia();
 const app = createApp(App)
   .use(pinia)
   .use(router)
-  .use(vuetify);
+  .use(vuetify)
+  .use(VueFilesPreview); // 注册 vue-files-preview 插件
 
 // 将 echarts 挂载到全局
 app.config.globalProperties.$echarts = echarts;

@@ -148,64 +148,52 @@ watch(
 </script>
 
 <template>
-    <div class="chart-container relative">
-        <div class="settings-bar absolute top-0 left-0 w-full flex justify-end p-2">
-            <v-btn icon @click="setChartType('line')" :class="{'active': props.modelValue === 'line'}">
+    <div class="chart-wrapper">
+        <div class="chart-toolbar">
+            <v-btn size="small" icon variant="text" @click="setChartType('line')" :class="{'active': props.modelValue === 'line'}">
                 <v-icon>mdi-chart-line</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('bar')" :class="{'active': props.modelValue === 'bar'}">
+            <v-btn size="small" icon variant="text" @click="setChartType('bar')" :class="{'active': props.modelValue === 'bar'}">
                 <v-icon>mdi-chart-bar</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('pie')" :class="{'active': props.modelValue === 'pie'}">
+            <v-btn size="small" icon variant="text" @click="setChartType('pie')" :class="{'active': props.modelValue === 'pie'}">
                 <v-icon>mdi-chart-pie</v-icon>
             </v-btn>
-            <v-btn icon @click="setChartType('doughnut')" :class="{'active': props.modelValue === 'doughnut'}">
+            <v-btn size="small" icon variant="text" @click="setChartType('doughnut')" :class="{'active': props.modelValue === 'doughnut'}">
                 <v-icon>mdi-chart-donut</v-icon>
             </v-btn>
         </div>
-        <div v-if="chartReady" ref="chart" class="chart-container mt-12"></div>
+        <div v-if="chartReady" ref="chart" class="chart-element"></div>
     </div>
 </template>
 
 <style scoped>
-.chart-container {
+.chart-wrapper {
     width: 100%;
-    height: 100%;
+    min-height: 450px;
+    height: 450px;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
-.settings-bar {
-    top: 0;
-    left: 0;
-    width: 100%;
+.chart-toolbar {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
     z-index: 10;
 }
 
-.chart-container .v-btn.active {
-    background-color: #1976d2;
+.chart-element {
+    flex: 1;
+    width: 100%;
+    min-height: 400px;
+}
+
+.v-btn.active {
+    background-color: rgb(var(--v-theme-primary));
     color: white;
-}
-
-.chart-container .v-btn {
-    margin-left: 8px;
-}
-
-@media (min-width: 768px) {
-    .chart-container .v-btn {
-        margin-left: 16px;
-    }
-
-    .chart-container {
-        height: 500px;
-        /* 确保在大屏幕上有足够的高度 */
-    }
-}
-
-@media (max-width: 768px) {
-    .chart-container {
-        height: 300px;
-    }
 }
 </style>
